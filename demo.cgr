@@ -1,0 +1,27 @@
+#Transpiles to demo.cgl
+
+#Information about the game
+#For now, will be fixed
+
+#info:
+#    name = "Demo"
+#    players = 1
+#    deck = standard_52
+#    turn = simultaneous_turns
+#    init = deal_evenly_to_hands
+#    winner = highest_score
+#    hand = stack
+#    end = all_hands_empty
+player:
+    # Make a new empty face down pile
+    pile = new_pile(empty, face_down)
+
+    # Take a turn
+    turn(args, moreargs):
+        # Move the top card from your hand to the pile
+        card = top_card(hand)
+        move(card, pile)
+    
+    # Calculate the score for a player
+    calculate_score():
+        return len(pile)

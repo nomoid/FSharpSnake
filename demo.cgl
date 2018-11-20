@@ -1,0 +1,12 @@
+#After one pass, the demo program becomes transpiled into an intermediate structure
+#This gets read by the actual parser to produce the Abstract Syntax Tree
+{s|player{b|
+    {l|pile = new_pile(empty, face_down)|l}
+    {s|turn(){b|
+        {l|card = top_card(hand)|l}
+        {l|move(card, pile)|l}
+    |b}|s}
+    {s|calculate_score(){b|
+        {l|return|len(pile)|l}
+    |b}|s}
+|b}|s}

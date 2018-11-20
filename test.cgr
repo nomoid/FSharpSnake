@@ -1,0 +1,48 @@
+#Test comment
+print2(abc, def):
+    print(abc)
+    print(def)
+    return 0
+
+#Expected output: false
+iftest1():
+    if true:
+        print(false)
+    if false:
+        print(true)
+    return 1
+
+#Expected output: b
+iftest2():
+    if false:
+        print("a")
+    elif true:
+        print("b")
+    else:
+        print("c")
+    return 2
+
+#Expected output: 2, 3, 0, 3
+scopetest():
+    let x = 0
+    let y = 1
+    let cond = true
+    if true:
+        let x = 2
+        y = 3
+        print2(x, y)
+    print2(x, y)
+    return 3
+
+parenstest():
+    return ((2))
+
+main():
+    let str = "Hello!"
+    print2(str, "world")
+    print(iftest1())
+    iftest2()
+    scopetest()
+    parenstest()
+    print("done.")
+    return 0
