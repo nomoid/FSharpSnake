@@ -7,5 +7,5 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 - [.NET Core](https://www.microsoft.com/net/download)
 
 ## Usage
-Build: `dotnet build`
-Run file: `dotnet run <filename>`
+- Build: `dotnet build`
+- Run file: `dotnet run <filename>`
