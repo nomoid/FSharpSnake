@@ -268,7 +268,14 @@ and evalExpr (nsScope : Scope) expr : (Value * Scope) =
     | StringLiteral str -> ValString str, nsScope
     | BoolLiteral b -> ValBool b, nsScope
     | ParensExpr e -> evalExpr nsScope e
-
+    | AddOp(e1, e2) -> evalInfix nsScope badd e1 e2
+    | SubOp(e1, e2) -> evalInfix nsScope bsub e1 e2
+    | MultOp(e1, e2) -> evalInfix nsScope bmult e1 e2
+    | DivOp(e1, e2) -> evalInfix nsScope bdiv e1 e2
+and evalInfix (scope : Scope) processor e1 e2 =
+    let vLeft, newScope1 = evalExpr scope e1
+    let vRight, newScope2 = evalExpr newScope1 e2
+    processor vLeft vRight, newScope2
   
 let rec convertToNamespace (ns : List<string * OrderedNamespace>) =
     match ns with

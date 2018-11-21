@@ -12,6 +12,10 @@ type Expr =
 | StringLiteral of string
 | BoolLiteral of bool
 | ParensExpr of Expr
+| AddOp of Expr * Expr
+| SubOp of Expr * Expr
+| MultOp of Expr * Expr
+| DivOp of Expr * Expr
 
 type Stmt =
 | FunctionCallStmt of string * List<Expr>
@@ -39,6 +43,8 @@ type Value =
 | ValReference of string
 | ValBuiltinFunc of (List<Value> -> Value)
 
+let precedences = [["*"; "/"]; ["+"; "-"]]
+
 let prettyprintfunc stringify exprs =
     "(" + (List.fold (fun a b -> 
             (if a <> "" then a + ", " else "") + stringify b
@@ -53,8 +59,16 @@ let rec prettyprintexpr expr =
     | StringLiteral(str) -> sprintf "\"%s\"" str
     | BoolLiteral(b) -> if b then "true" else "false"
     | ParensExpr(e) -> sprintf "(%s)" (prettyprintexpr e)
+    | AddOp(e1, e2) -> prettyprintinfix "+" e1 e2
+    | SubOp(e1, e2) -> prettyprintinfix "-" e1 e2
+    | MultOp(e1, e2) -> prettyprintinfix "*" e1 e2
+    | DivOp(e1, e2) -> prettyprintinfix "/" e1 e2
+        
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
+and prettyprintinfix op e1 e2 =
+    sprintf "%s %s %s" 
+            (prettyprintexpr e1) op (prettyprintexpr e2)
 
 let prettyprintassignment name expr =
     name + " = " + (prettyprintexpr expr)
@@ -117,6 +131,11 @@ let poption (parser: Parser<'a>) input : Outcome<'a Option> =
     match parser input with
     | Success (res, rem) -> Success (Some res, rem)
     | Failure -> Success (None, input)
+
+//parsers should not be empty
+//let pinfix (opparser: Parser<'a>) (leftparser: Parser<'b>) 
+//    (rightparser: Parser<'c>) (combiner: 'b -> 'c -> 'd) : Parser<'d> =
+    
 
 let isSymb c = is_regexp (c.ToString()) @"_"
 let isLetterSymb c = is_letter c || isSymb c
@@ -182,13 +201,65 @@ let pBoolLiteral = pTrueLiteral <|> pFalseLiteral
 
 let pParens = pbetween (pchar '(') (pchar ')') pExpr |>> ParensExpr
 
-pExprImpl := 
+let pConsumingExpr = 
     pFuncCallExpr
     <|> pBoolLiteral
     <|> pidExpr
     <|> pNumLiteral
     <|> pStrLiteral
     <|> pParens
+
+let paddop = pfresult (pstr "+") ("+", AddOp)
+let psubop = pfresult (pstr "-") ("-", SubOp)
+let pmultop = pfresult (pstr "*") ("*", MultOp)
+let pdivop = pfresult (pstr "/") ("/", DivOp)
+let pinfixop = paddop <|> psubop <|> pmultop <|> pdivop
+
+let rec combineSinglePrecOp right cexpr xs predicate =
+    match xs with
+    | [] -> cexpr, []
+    | ((name, op), term) :: remaining ->
+        let expr, newRemaining = 
+            combineSinglePrecOp right term remaining predicate
+        if predicate name then
+            let opin = if right then (cexpr, expr) else (expr, cexpr)
+            (op opin), newRemaining
+        else
+            cexpr, ((name, op), expr) :: newRemaining
+
+let rec rightToLeftAssoc cexpr xs ys =
+    match xs with
+    | [] -> cexpr, ys
+    | (opn, expr) :: remaining -> 
+        rightToLeftAssoc expr remaining ((opn, cexpr) :: ys)
+
+let rec combineOps right precs (cexpr, xs) =
+    match precs with
+    | [] -> 
+        let newExpr, _ = combineSinglePrecOp right cexpr xs (fun x -> true)
+        newExpr
+    | singlePrec :: remaining ->
+        let newExpr, nxs = 
+            combineSinglePrecOp right cexpr xs 
+                (fun x -> List.contains x singlePrec)
+        combineOps right remaining (newExpr, nxs)
+
+let combineOpsRight precs (cexpr, xs) = 
+    combineOps true precs (cexpr, xs)
+
+let combineOpsLeft precs (cexpr, xs) =
+    combineOps false precs (rightToLeftAssoc cexpr xs [])
+
+pExprImpl := 
+    pseq pConsumingExpr 
+        (pmany0 
+            (pseq pinfixop 
+                pConsumingExpr
+                id
+            )
+        )
+        (combineOpsLeft precedences)
+    
 
 let pAssignment = 
     pseq (pleft pidentifier (pchar '=')) pExpr 

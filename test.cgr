@@ -37,6 +37,10 @@ scopetest():
 parenstest():
     return ((2))
 
+optest():
+    x = 3 - 4 - 5 * (2 + 6 / 5)
+    return x
+
 main():
     let str = "Hello!"
     print2(str, "world")
@@ -44,5 +48,6 @@ main():
     iftest2()
     scopetest()
     parenstest()
+    print(optest())
     print("done.")
     return 0
