@@ -2,8 +2,24 @@ module ProjectParser
 
 open System
 open System.Text.RegularExpressions
-
+open Microsoft.FSharp.Reflection
 open Parser
+
+type BinaryOp =
+// Numerical operations
+| Add
+| Sub
+| Mult
+| Div
+// Comparison operations
+| Eq
+| Neq
+| Leq
+| Geq
+| Lt
+| Gt
+let binaryOps = [Add; Sub; Mult; Div; Eq; Neq; Leq; Geq; Lt; Gt]
+let precedences = [[Mult; Div]; [Add; Sub]; [Eq; Neq; Leq; Geq; Lt; Gt]]
 
 type Expr =
 | FunctionCallExpr of string * List<Expr>
@@ -12,10 +28,7 @@ type Expr =
 | StringLiteral of string
 | BoolLiteral of bool
 | ParensExpr of Expr
-| AddOp of Expr * Expr
-| SubOp of Expr * Expr
-| MultOp of Expr * Expr
-| DivOp of Expr * Expr
+| BinaryExpr of BinaryOp * Expr * Expr
 
 type Stmt =
 | FunctionCallStmt of string * List<Expr>
@@ -43,13 +56,24 @@ type Value =
 | ValReference of string
 | ValBuiltinFunc of (List<Value> -> Value)
 
-let precedences = [["*"; "/"]; ["+"; "-"]]
-
 let prettyprintfunc stringify exprs =
     "(" + (List.fold (fun a b -> 
             (if a <> "" then a + ", " else "") + stringify b
         ) "" exprs) 
         + ")"
+
+let optostr op =
+    match op with
+    | Add -> "+"
+    | Sub -> "-"
+    | Mult -> "*"
+    | Div -> "/"
+    | Eq -> "=="
+    | Neq -> "!="
+    | Leq -> "<="
+    | Geq -> ">="
+    | Lt -> "<"
+    | Gt -> ">"
 
 let rec prettyprintexpr expr =
     match expr with
@@ -59,10 +83,7 @@ let rec prettyprintexpr expr =
     | StringLiteral(str) -> sprintf "\"%s\"" str
     | BoolLiteral(b) -> if b then "true" else "false"
     | ParensExpr(e) -> sprintf "(%s)" (prettyprintexpr e)
-    | AddOp(e1, e2) -> prettyprintinfix "+" e1 e2
-    | SubOp(e1, e2) -> prettyprintinfix "-" e1 e2
-    | MultOp(e1, e2) -> prettyprintinfix "*" e1 e2
-    | DivOp(e1, e2) -> prettyprintinfix "/" e1 e2
+    | BinaryExpr(op, e1, e2) -> prettyprintinfix (optostr op) e1 e2
         
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
@@ -208,12 +229,16 @@ let pConsumingExpr =
     <|> pNumLiteral
     <|> pStrLiteral
     <|> pParens
+let makebin bop (a, b) =
+    BinaryExpr (bop, a, b)
 
-let paddop = pfresult (pstr "+") ("+", AddOp)
-let psubop = pfresult (pstr "-") ("-", SubOp)
-let pmultop = pfresult (pstr "*") ("*", MultOp)
-let pdivop = pfresult (pstr "/") ("/", DivOp)
-let pinfixop = paddop <|> psubop <|> pmultop <|> pdivop
+let pbinop op = 
+    let str = (optostr op)
+    let exprgen = makebin op
+    pfresult (pstr str) (op, exprgen)
+
+let pinfixop =
+    List.fold (fun parser op -> (parser <|> (pbinop op))) pzero binaryOps
 
 let rec combineSinglePrecOp right cexpr xs predicate =
     match xs with
