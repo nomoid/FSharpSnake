@@ -4,25 +4,22 @@ print2(abc, def):
     print(def)
     return 0
 
-#Expected output: false
 iftest1():
     if true:
-        print(false)
+        print(0)
     if false:
-        print(true)
+        print(1)
     return 1
 
-#Expected output: b
 iftest2():
     if false:
-        print("a")
+        print("2")
     elif true:
-        print("b")
+        print("0")
     else:
-        print("c")
+        print("1")
     return 2
 
-#Expected output: 2, 3, 0, 3
 scopetest():
     let x = 0
     let y = 1
@@ -30,16 +27,16 @@ scopetest():
     if true:
         let x = 2
         y = 3
-        print2(x, y)
-    print2(x, y)
-    return 3
+        print2(x - 2, y - 3)
+    print2(x, y - 3)
+    return 0
 
 parenstest():
-    return ((2))
+    return ((0))
 
 optest():
     x = 3 - 4 - 5 * (2 + 6 / 5)
-    return x
+    return x + 16
 
 comptest():
     let x = 1
@@ -58,12 +55,14 @@ comptest():
     return 0
 
 main():
-    let str = "Hello!"
-    print2(str, "world")
-    print(iftest1())
+    let str = "Hello, world!"
+    let str2 = "F# is the best!"
+    print2(str, str2)
+    print(iftest1() - 1)
+    print("The following outputs should print \"0\":")
     iftest2()
     scopetest()
-    parenstest()
+    print(parenstest())
     print(optest())
     print(comptest())
     print("done.")

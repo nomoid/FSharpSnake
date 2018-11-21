@@ -2,7 +2,6 @@ module ProjectParser
 
 open System
 open System.Text.RegularExpressions
-open Microsoft.FSharp.Reflection
 open Parser
 
 type BinaryOp =
@@ -158,7 +157,7 @@ let poption (parser: Parser<'a>) input : Outcome<'a Option> =
 //    (rightparser: Parser<'c>) (combiner: 'b -> 'c -> 'd) : Parser<'d> =
     
 
-let isSymb c = is_regexp (c.ToString()) @"_"
+let isSymb c = is_regexp (c.ToString()) @"[_$]"
 let isLetterSymb c = is_letter c || isSymb c
 let isValidChar c = isLetterSymb c || is_digit c
 let isNotQuote c = c <> '\"'
@@ -211,11 +210,14 @@ let pNumLiteral =
             | Some _ -> -num
             | None -> num
         ) |>> NumLiteral
-let pStrInner = (pright (pchar '\\') pitem) <|> (psat isNotQuote)
-let pStrLiteral = 
-    pleft (pright (pchar '"') (pmany0 pStrInner)) (pchar '"') 
-        |>> charListToString 
-        |>> StringLiteral
+
+//String parsing is handled by the upper parser
+
+//let pStrInner = (pright (pchar '\\') pitem) <|> (psat isNotQuote)
+//let pStrLiteral = 
+//    pleft (pright (pchar '"') (pmany0 pStrInner)) (pchar '"') 
+//        |>> charListToString 
+//        |>> StringLiteral
 let pTrueLiteral = pfresult (pstr "true") (BoolLiteral true)
 let pFalseLiteral = pfresult (pstr "false") (BoolLiteral false)
 let pBoolLiteral = pTrueLiteral <|> pFalseLiteral
@@ -227,7 +229,7 @@ let pConsumingExpr =
     <|> pBoolLiteral
     <|> pidExpr
     <|> pNumLiteral
-    <|> pStrLiteral
+//    <|> pStrLiteral
     <|> pParens
 let makebin bop (a, b) =
     BinaryExpr (bop, a, b)
@@ -376,7 +378,7 @@ let parseLower input : List<Defn> option =
     | Success(e,_) -> Some e
     | Failure -> None
 
-let clean input =
+let cleanLower input =
     let clean0 = Regex.Replace(input, @"[\n\r]+", "")
     let clean1 = Regex.Replace(clean0, @"[\s]{2,}", " ")
     let clean2 = 
@@ -420,28 +422,91 @@ let rec parseUpper stringList =
         else
             Line line :: (parseUpper remaining)
 
-let cleanUpperLine line =
-    let clean1 = Regex.Replace(line, @"\#.+", "")
-    if Regex.Replace(clean1, @"\s", "") = "" then
-        ""
+let stringExtract i = 
+    sprintf "$%i$" i
+
+let stringReplace (str : string) index length replacement =
+    String.concat "" [str.[0 .. index - 1]; 
+                        replacement; 
+                        str.[index + length .. str.Length - 1]]
+
+let extractQuotes line (strings : string[]) =
+    let m = Regex.Match(line, "(\"([^\"\\\\]|\\\\\\\\|\\\\\")+\")")
+    if m.Success then
+        let firstMatch = m.Groups.[1]
+        let text = firstMatch.Value
+        let text2 = Regex.Replace(text, "\\\\\\\\", "\\\\")
+        let text3 = Regex.Replace(text2, "\\\\\"", "\"")
+        //printfn "L:%s;fmv:%s;fmi:%i;fml:%i" line text 
+        //    firstMatch.Index firstMatch.Length
+        let outLine = 
+            stringReplace line firstMatch.Index firstMatch.Length 
+                (stringExtract strings.Length)
+        //Text contains quotes, so remove first and last char
+        outLine, Array.append strings [|text3.[1 .. text3.Length - 2]|]
     else
-        clean1
+        line, strings
+
+let cleanUpperLine line strings =
+    //Extract string literals - do this before other cleanup
+    let newLine, newStrings = extractQuotes line strings
+    //Replace illegal chars
+    let clean0 = Regex.Replace(newLine, @"[\{\|\}]", "")
+    //Replace comments
+    let clean1 = Regex.Replace(clean0, @"\#.+", "")
+    if Regex.Replace(clean1, @"\s", "") = "" then
+        "", newStrings
+    else
+        clean1, newStrings
 
 let cleanUpper stringList =
-    stringList |> List.map cleanUpperLine |> List.filter (fun x -> x <> "")
+    let cleanUpperInner str (xs, assigns) =
+        let cleaned, newAssigns = cleanUpperLine str assigns
+        cleaned :: xs, newAssigns
+    let newLines, strings = List.foldBack cleanUpperInner stringList ([], [||])
+    let newLines2 = List.filter (fun x -> x <> "") newLines
+    newLines2, strings
 
 let rec upperToLower blockList =
-    blockList |> List.map upperToLowerSingle |> String.Concat
+    let upperToLowerInner state block =
+        match state with
+        | None -> None
+        | Some s ->
+            match upperToLowerSingle block with
+            | None -> None
+            | Some s2 -> Some (s + s2)
+    List.fold upperToLowerInner (Some "") blockList
 and upperToLowerSingle block =
     match block with
-    | NoBlock -> ""
-    | Line line -> "{l|" + line + "|l}"
+    | NoBlock -> Some ""
+    | Line line -> 
+        //Make sure line does not start with spaces
+        if line.StartsWith " " then
+            None 
+        else
+            Some ("{l|" + line + "|l}")
     | SubBlock(title, sub) -> 
-        "{s|" + title + "{b|" + (upperToLower sub) + "|b}|s}"
+        if title.StartsWith " " then
+            None
+        else
+            match upperToLower sub with
+            | None -> None
+            | Some v -> Some ("{s|" + title + "{b|" + v + "|b}|s}")
+
+let assignStrings assigns =
+    let xs = Array.toList assigns
+    let xsz = List.zip [0..(xs.Length - 1)] xs
+    List.map (fun (index, elem) -> 
+        AssignmentDefn(stringExtract index, StringLiteral(elem))) xsz
 
 let parseComplete lines =
-    let cleanLines = cleanUpper lines
+    let cleanLines, assigns = cleanUpper lines
     let parsed = parseUpper cleanLines
-    let lower = upperToLower parsed
-    let cleaned = clean lower
-    parseLower cleaned
+    match upperToLower parsed with
+    | None -> None
+    | Some lower ->
+        let cleaned = cleanLower lower
+        match parseLower cleaned with
+        | None -> None
+        | Some s -> Some (List.append (assignStrings assigns) s)
+        
