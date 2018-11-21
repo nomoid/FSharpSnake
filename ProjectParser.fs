@@ -423,7 +423,10 @@ let rec parseUpper stringList =
             Line line :: (parseUpper remaining)
 
 let stringExtract i = 
-    sprintf "$%i$" i
+    sprintf "$str_%i$" i
+
+let stringExtractRegex i = 
+    sprintf "$$str_%i$$" i
 
 let stringReplace (str : string) index length replacement =
     String.concat "" [str.[0 .. index - 1]; 
@@ -431,17 +434,20 @@ let stringReplace (str : string) index length replacement =
                         str.[index + length .. str.Length - 1]]
 
 let extractQuotes line (strings : string[]) =
-    let m = Regex.Match(line, "(\"([^\"\\\\]|\\\\\\\\|\\\\\")+\")")
+    let quoteRegex = new Regex("(\"([^\"\\\\]|\\\\\\\\|\\\\\")+\")")
+    let m = quoteRegex.Match(line)
     if m.Success then
-        let firstMatch = m.Groups.[1]
+        let firstMatch = List.head (Seq.toList m.Groups)
         let text = firstMatch.Value
         let text2 = Regex.Replace(text, "\\\\\\\\", "\\\\")
         let text3 = Regex.Replace(text2, "\\\\\"", "\"")
         //printfn "L:%s;fmv:%s;fmi:%i;fml:%i" line text 
         //    firstMatch.Index firstMatch.Length
         let outLine = 
-            stringReplace line firstMatch.Index firstMatch.Length 
-                (stringExtract strings.Length)
+            quoteRegex.Replace(line, stringExtract strings.Length, 1)
+            //stringReplace line firstMatch.Index firstMatch.Length 
+            //    (stringExtract strings.Length)
+        //printfn "a:%s,b:%A,c:%A" line outLine (stringExtract strings.Length)
         //Text contains quotes, so remove first and last char
         outLine, Array.append strings [|text3.[1 .. text3.Length - 2]|]
     else
