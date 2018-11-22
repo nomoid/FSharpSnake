@@ -4,17 +4,23 @@ open ProjectParser
 
 exception BuiltinException of string
 
-let bprint args =
+let singlearg name args =
     match args with
-    | [x] -> 
-        match x with
-        | ValInt i -> printfn "%i" i; ValNone
-        | ValString s -> printfn "%s" s; ValNone
-        | ValBool b -> printfn "%s" (if b then "true" else "false"); ValNone
-        | _ -> raise (BuiltinException "Print: input type cannot be printed")
-    | _ -> 
-        raise (BuiltinException 
-            "Print: can only be called with one argument")
+    | [x] -> x
+    | _ -> raise (BuiltinException 
+            (sprintf "%s: can only be called with one argument" name))
+
+let bprint args =
+    match singlearg "Print" args with
+    | ValInt i -> printfn "%i" i; ValNone
+    | ValString s -> printfn "%s" s; ValNone
+    | ValBool b -> printfn "%s" (if b then "true" else "false"); ValNone
+    | _ -> raise (BuiltinException "Print: input type cannot be printed")
+
+let bsqrt args =
+    match singlearg "Sqrt" args with
+    | ValInt i -> ValInt (int (sqrt (float i)))
+    | _ -> raise (BuiltinException "Sqrt: invalid input type")
 
 let bnot e =
     match e with
@@ -50,6 +56,14 @@ let bcompop op numOp e1 e2 =
             (sprintf "%s: type error on one or more arguments" 
                 (optostr op)))
 
+let bboolop op numOp e1 e2 =
+    match e1, e2 with
+    | ValBool a, ValBool b -> ValBool (numOp a b)
+    | _, _ -> 
+        raise (BuiltinException 
+            (sprintf "%s: type error on one or more arguments" 
+                (optostr op)))
+
 let bnumop op numOp e1 e2 =
     match e1, e2 with
     | ValInt a, ValInt b -> ValInt (numOp a b)
@@ -64,12 +78,15 @@ let opto op =
     | Sub -> bnumop Sub (-)
     | Mult -> bnumop Mult (*)
     | Div -> bnumop Div (/)
+    | Mod -> bnumop Mod (%)
     | Eq -> beqop
     | Neq -> (fun a b -> bnot (beqop a b))
     | Leq -> bcompop Leq (<=)
     | Geq -> bcompop Geq (>=)
     | Lt -> bcompop Lt (<)
     | Gt -> bcompop Gt (>)
+    | And -> bboolop And (&&)
+    | Or -> bboolop Or (||)
 
 let bbinary bop =
     opto bop
@@ -77,5 +94,6 @@ let bbinary bop =
 let builtins : Map<string, Value> = 
     [
         ("print", ValBuiltinFunc bprint)
+        ("sqrt", ValBuiltinFunc bsqrt)
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

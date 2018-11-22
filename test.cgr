@@ -36,6 +36,7 @@ parenstest():
 
 optest():
     x = 3 - 4 - 5 * (2 + 6 / 5)
+    let y = 16
     return x + 16
 
 comptest():
@@ -54,16 +55,26 @@ comptest():
                     return -1
     return 0
 
+booltest():
+    let x = 3
+    if (1 > 2 & 2 > 1) == false:
+        x = x - 1
+    if (1 > 2 | 2 > 1) == true:
+        x = x - 1
+    x = x - 1
+    return x
+
 main():
     let str = "Hello, world!"
     let str2 = "F# is the best!"
     print2(str, str2)
-    print(iftest1() - 1)
     print("The following outputs should print \"0\":")
+    print(iftest1() - 1)
     iftest2()
     scopetest()
     print(parenstest())
     print(optest())
     print(comptest())
+    print(booltest())
     print("done.")
     return 0

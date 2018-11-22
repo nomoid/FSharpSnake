@@ -10,6 +10,10 @@ type BinaryOp =
 | Sub
 | Mult
 | Div
+| Mod
+// Boolean operations
+| And
+| Or
 // Comparison operations
 | Eq
 | Neq
@@ -17,8 +21,28 @@ type BinaryOp =
 | Geq
 | Lt
 | Gt
-let binaryOps = [Add; Sub; Mult; Div; Eq; Neq; Leq; Geq; Lt; Gt]
-let precedences = [[Mult; Div]; [Add; Sub]; [Eq; Neq; Leq; Geq; Lt; Gt]]
+//TODO operators
+//Unary Not, Unary Neg
+//Dot
+//Dot assign
+let binaryOps = [Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt]
+let precedences = [[Mult; Div; Mod]; [Add; Sub]; [Leq; Geq; Lt; Gt]; [Eq; Neq]; [And]; [Or]]
+
+let optostr op =
+    match op with
+    | Add -> "+"
+    | Sub -> "-"
+    | Mult -> "*"
+    | Div -> "/"
+    | Mod -> "%"
+    | Eq -> "=="
+    | Neq -> "!="
+    | Leq -> "<="
+    | Geq -> ">="
+    | Lt -> "<"
+    | Gt -> ">"
+    | And -> "&"
+    | Or -> "|"
 
 type Expr =
 | FunctionCallExpr of string * List<Expr>
@@ -60,19 +84,6 @@ let prettyprintfunc stringify exprs =
             (if a <> "" then a + ", " else "") + stringify b
         ) "" exprs) 
         + ")"
-
-let optostr op =
-    match op with
-    | Add -> "+"
-    | Sub -> "-"
-    | Mult -> "*"
-    | Div -> "/"
-    | Eq -> "=="
-    | Neq -> "!="
-    | Leq -> "<="
-    | Geq -> ">="
-    | Lt -> "<"
-    | Gt -> ">"
 
 let rec prettyprintexpr expr =
     match expr with
@@ -174,7 +185,7 @@ let pidentifier =
             |> charListToString
         )
 
-let pidsep = (poption (pchar '|'))
+let pidsep = (poption (pchar '?'))
 let pidExpr = pidentifier |>> Identifier
 
 let plistsep sepParser innerParser =
@@ -327,12 +338,12 @@ let pStmt =
     <|> pFuncCallStmt
     <|> pAssignmentStmt
 
-let pLine parser = pbetween (pstr "{l|") (pstr "|l}") parser
-let pBlock parser = pbetween (pstr "{b|") (pstr "|b}") (pmany1 parser)
+let pLine parser = pbetween (pstr "{l{") (pstr "}l}") parser
+let pBlock parser = pbetween (pstr "{b{") (pstr "}b}") (pmany1 parser)
 let pFuncHeader = pFuncHelper pidentifier
 
 let pGroup header blockElem converter =
-    pbetween (pstr "{s|") (pstr "|s}") (
+    pbetween (pstr "{s{") (pstr "}s}") (
         pseq header (pBlock blockElem)
             converter
     )
@@ -382,7 +393,7 @@ let cleanLower input =
     let clean0 = Regex.Replace(input, @"[\n\r]+", "")
     let clean1 = Regex.Replace(clean0, @"[\s]{2,}", " ")
     let clean2 = 
-        Regex.Replace(clean1, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1|$2")
+        Regex.Replace(clean1, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1?$2")
     let clean3 = Regex.Replace(clean2, @" ", "")
     clean3
 
@@ -457,7 +468,7 @@ let cleanUpperLine line strings =
     //Extract string literals - do this before other cleanup
     let newLine, newStrings = extractQuotes line strings
     //Replace illegal chars
-    let clean0 = Regex.Replace(newLine, @"[\{\|\}]", "")
+    let clean0 = Regex.Replace(newLine, @"[\{\}]", "")
     //Replace comments
     let clean1 = Regex.Replace(clean0, @"\#.+", "")
     if Regex.Replace(clean1, @"\s", "") = "" then
@@ -490,14 +501,14 @@ and upperToLowerSingle block =
         if line.StartsWith " " then
             None 
         else
-            Some ("{l|" + line + "|l}")
+            Some ("{l{" + line + "}l}")
     | SubBlock(title, sub) -> 
         if title.StartsWith " " then
             None
         else
             match upperToLower sub with
             | None -> None
-            | Some v -> Some ("{s|" + title + "{b|" + v + "|b}|s}")
+            | Some v -> Some ("{s{" + title + "{b{" + v + "}b}}s}")
 
 let assignStrings assigns =
     let xs = Array.toList assigns
