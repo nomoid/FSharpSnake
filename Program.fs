@@ -3,7 +3,9 @@
 open ProjectParser
 open ProjectInterpreter
 
-exception IllegalArgumentException of string
+exception ParseFailureException of Option<int * string>
+
+//TODO 
 
 [<EntryPoint>]
 let main argv =
@@ -12,9 +14,11 @@ let main argv =
         let lines = File.ReadLines s |> List.ofSeq
 
         match parseComplete lines with
-        | None -> raise (IllegalArgumentException s)
-        | Some dlist -> 
-            let s2 = (prettyprint dlist)
+        | ParseFailure onum -> 
+            let oline = Option.map (fun x -> x, lines.[x-1]) onum
+            raise (ParseFailureException oline)
+        | ParseSuccess dlist -> 
+            //let s2 = (prettyprint dlist)
             //printfn "%s" s2
             //printfn "%O" dlist
             match runMain dlist with
@@ -24,12 +28,14 @@ let main argv =
                 printfn "Program exited with non-integer return code"
             0 // return an integer exit code*)
     with
-        | IllegalArgumentException s ->
-            printfn "Cannot parse input from \"%s\"" s
-            printfn "Usage: dotnet run <s>"
+        | ParseFailureException oline ->
+            let oval =
+                match oline with
+                | None -> "Cannot parse input"
+                | Some (num, line) -> sprintf "Invalid syntax on line %i:\n\t%s" num (line.Trim())
+            printfn "%s" oval
             1
         | InterpreterException s ->
             printfn "Interpreter exception \"%s\"" s
-            printfn "Usage: dotnet run <s>"
             1
         //| _ -> printfn "Usage: dotnet run <s>"; 1

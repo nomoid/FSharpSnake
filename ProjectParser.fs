@@ -217,9 +217,11 @@ let pFuncCall = pFuncHelper pExpr
 let pFuncCallExpr = pFuncCall |>> FunctionCallExpr
 let pFuncCallStmt = pFuncCall |>> FunctionCallStmt
 
+let pPosInt = (pmany1 pdigit |>> charListToString |>> int)
+
 let pNumLiteral = 
     pseq (poption (pchar '-')) 
-        (pmany1 pdigit |>> charListToString |>> int)
+        pPosInt
         (fun (oc, num) ->
             match oc with
             | Some _ -> -num
@@ -342,15 +344,28 @@ let pStmt =
     <|> pFuncCallStmt
     <|> pAssignmentStmt
 
-let pLine parser = pbetween (pstr "{l{") (pstr "}l}") parser
+let mutable maxLine = 0
+
+let pPosIntMut input =
+    let retVal = pPosInt input
+    match retVal with
+    | Success (v, _) ->
+        maxLine <- if v > maxLine then v else maxLine
+        retVal
+    | Failure -> retVal
+
+let pMaxLine parser = pright pPosIntMut (pright (pstr "{") parser)
+
+let pLine parser = pbetween (pstr "{l") (pstr "}l}") (pMaxLine parser)
 let pBlock parser = pbetween (pstr "{b{") (pstr "}b}") (pmany1 parser)
 let pFuncHeader = pFuncHelper pidentifier
 
 let pGroup header blockElem converter =
-    pbetween (pstr "{s{") (pstr "}s}") (
-        pseq header (pBlock blockElem)
-            converter
-    )
+    pbetween (pstr "{s") (pstr "}s}") (pMaxLine 
+        (
+            pseq header (pBlock blockElem)
+                converter
+        ))
 
 let pIfHeader = pWordStmt pIdExpr "if" id
 let pElifHeader = pWordStmt pIdExpr "elif" id
@@ -393,6 +408,7 @@ let pProgram = pmany1 pDefn
 let grammar = pleft pProgram peof
 
 let parseLower input : List<Defn> option =
+    maxLine <- 0
     match grammar (prepare input) with
     | Success(e,_) -> Some e
     | Failure -> None
@@ -408,38 +424,45 @@ let cleanLower input =
 
 type Block =
 | NoBlock
-| Line of string
-| SubBlock of string * List<Block>
+| Line of int * string
+| SubBlock of int * string * List<Block>
+
+let linewithnum num l =
+    sprintf "%04i:%s" num l
 
 let rec prettyprintblock block =
     match block with
     | NoBlock -> []
-    | Line l -> [l]
-    | SubBlock(title, sub) ->
+    | Line (_, l) -> [l]
+    | SubBlock(_, title, sub) ->
         title + ":" :: (indent (sub |> List.collect prettyprintblock))
 
-let rec findIndented (stringList : List<string>) =
-    match stringList with
+let rec findIndented (lineList : List<int * string>) =
+    match lineList with
     | [] -> [], []
-    | line :: remaining ->
-        if line.Substring(0, indentationSize) = indentation then
+    | (num, line) :: remaining ->
+        if line.Length >= indentationSize && line.Substring(0, indentationSize) = indentation then
             let unindented = line.Substring(indentationSize)
             let remainingIndented, rest = findIndented remaining
-            unindented :: remainingIndented, rest
+            (num, unindented) :: remainingIndented, rest
         else
-            [], stringList
-
-let rec parseUpper stringList =
-    match stringList with
+            [], lineList
+let rec parseUpperNum lineList =
+    match lineList with
     | [] -> []
-    | line :: remaining ->
+    | (num, line) :: remaining ->
         let cleanLine = Regex.Replace(line, @":\s+$", ":")
         if cleanLine.Chars(cleanLine.Length - 1) = ':' then
             let cleanLine2 = cleanLine.Substring(0, cleanLine.Length - 1)
             let indented, rest = findIndented remaining
-            (SubBlock(cleanLine2, parseUpper indented)) :: (parseUpper rest)
+            (SubBlock(num, cleanLine2, parseUpperNum indented)) :: (parseUpperNum rest)
         else
-            Line line :: (parseUpper remaining)
+            Line (num, line) :: (parseUpperNum remaining)
+
+let parseUpper (stringList : List<string>) =
+    let zipped = List.zip [1..stringList.Length] stringList
+    let newLines = List.filter (fun x -> snd x <> "") zipped
+    parseUpperNum newLines
 
 let stringExtract i = 
     sprintf "$str_%i$" i
@@ -489,49 +512,62 @@ let cleanUpper stringList =
         let cleaned, newAssigns = cleanUpperLine str assigns
         cleaned :: xs, newAssigns
     let newLines, strings = List.foldBack cleanUpperInner stringList ([], [||])
-    let newLines2 = List.filter (fun x -> x <> "") newLines
-    newLines2, strings
+    newLines, strings
+
+type UpperToLowerResult =
+| UTLSuccess of string
+| UTLFailure of int
 
 let rec upperToLower blockList =
     let upperToLowerInner state block =
         match state with
-        | None -> None
-        | Some s ->
+        | UTLFailure num -> UTLFailure num
+        | UTLSuccess s ->
             match upperToLowerSingle block with
-            | None -> None
-            | Some s2 -> Some (s + s2)
-    List.fold upperToLowerInner (Some "") blockList
+            | UTLFailure num -> UTLFailure num
+            | UTLSuccess s2 -> UTLSuccess (s + s2)
+    List.fold upperToLowerInner (UTLSuccess "") blockList
 and upperToLowerSingle block =
     match block with
-    | NoBlock -> Some ""
-    | Line line -> 
+    | NoBlock -> UTLSuccess ""
+    | Line (num, line) -> 
         //Make sure line does not start with spaces
         if line.StartsWith " " then
-            None 
+            UTLFailure num 
         else
-            Some ("{l{" + line + "}l}")
-    | SubBlock(title, sub) -> 
+            UTLSuccess ((sprintf "{l%i{" num) + line + "}l}")
+    | SubBlock(num, title, sub) -> 
         if title.StartsWith " " then
-            None
+            UTLFailure num
         else
             match upperToLower sub with
-            | None -> None
-            | Some v -> Some ("{s{" + title + "{b{" + v + "}b}}s}")
+            | UTLFailure num -> UTLFailure num
+            | UTLSuccess v -> UTLSuccess ((sprintf "{s%i{" num) + title + "{b{" + v + "}b}}s}")
 
 let assignStrings assigns =
     let xs = Array.toList assigns
-    let xsz = List.zip [0..(xs.Length - 1)] xs
+    let xsz = List.zip [0..(xs.Length-1)] xs
     List.map (fun (index, elem) -> 
         AssignmentDefn(stringExtract index, StringLiteral(elem))) xsz
+
+type ParseResult =
+| ParseSuccess of List<Defn>
+//Line failed on
+| ParseFailure of Option<int>
 
 let parseComplete lines =
     let cleanLines, assigns = cleanUpper lines
     let parsed = parseUpper cleanLines
     match upperToLower parsed with
-    | None -> None
-    | Some lower ->
+    | UTLFailure num -> ParseFailure (Some num)
+    | UTLSuccess lower ->
         let cleaned = cleanLower lower
         match parseLower cleaned with
-        | None -> None
-        | Some s -> Some (List.append (assignStrings assigns) s)
+        | None -> 
+            let res = (Some maxLine)
+            maxLine <- 0
+            ParseFailure res
+        | Some s -> 
+            maxLine <- 0
+            ParseSuccess (List.append (assignStrings assigns) s)
         
