@@ -201,6 +201,17 @@ and ifElse scope condBlockList optionBlock =
             s, newScope
         | None ->
             ifElse newScope remaining optionBlock
+and runWhile scope cond block =
+    let v, newScope = ifOnce scope cond block
+    match v with
+    // Condition is false
+    | None -> None, newScope
+    | Some vin -> 
+        match vin with
+        // Inner return
+        | Some _ -> vin, newScope
+        // Tail call while loop
+        | None -> runWhile newScope cond block
 and evalStmt (nsScope : Scope) stmt =
     match stmt with
     | FunctionCallStmt(name, args) ->
@@ -218,6 +229,8 @@ and evalStmt (nsScope : Scope) stmt =
         Some v, newScope
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
         ifElse nsScope ((cond, block) :: condBlockList) optionBlock
+    | WhileStmt(cond, block) ->
+        runWhile nsScope cond block
 and evalStmts (nsScope : Scope) stmts =
     //printfn "%A" (fst nsScope)
     match stmts with

@@ -62,6 +62,7 @@ type Stmt =
     (Expr * List<Stmt>) * 
     List<Expr * List<Stmt>> * 
     Option<List<Stmt>>
+| WhileStmt of Expr * List<Stmt>
 
 type Defn =
 // Function with (name, arg_names[], body)
@@ -139,6 +140,9 @@ let rec prettyprintstmt stmt =
                     ) condBlockList
                 elseLines
             ]
+    | WhileStmt(cond, block) ->
+        prettyprintgroup ("while " + prettyprintexpr cond) 
+                    prettyprintstmt block
 
 
 let prettyprintlist printer xs =
@@ -354,6 +358,8 @@ let pElseHeader = pWordStmt (pidentifier |>> (fun a -> a, ())) "else" id
 
 //IfElseStmt((name, block), List.empty, None))
 
+let pWhileHeader = pWordStmt pIdExpr "while" id
+
 let rec pFuncScope header =
     let b : Parser<Stmt> = ((pLine pStmt) <|> pInnerScope)
     pGroup header b
@@ -367,7 +373,9 @@ and pIfGroup a =
             (fun (((cond, block), condBlockList), optionBlock) -> 
                 IfElseStmt((cond, block), condBlockList, optionBlock))
         )
-and pInnerScope = pIfGroup
+and pWhileGroup a =
+    a |> pFuncScope pWhileHeader WhileStmt
+and pInnerScope a = a |> (pIfGroup <|> pWhileGroup)
 
 let (pDefn : Parser<Defn>), pDefnImpl = recparser()
 

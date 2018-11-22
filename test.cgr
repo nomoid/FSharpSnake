@@ -64,6 +64,37 @@ booltest():
     x = x - 1
     return x
 
+isprime(n):
+    if n < 2:
+        return false
+    let i = 2
+    while i <= sqrt(n):
+        if n % i == 0:
+            return false
+        i = i + 1
+    return true
+
+primetest():
+    if isprime(1):
+        print(1)
+    if isprime(2) == false:
+        print(1)
+    if isprime(3) == false:
+        print(1)
+    if isprime(4):
+        print(1)
+    if isprime(5 * 6):
+        print(1)
+    if isprime(37) == false:
+        print(1)
+    if isprime(91):
+        print(1)
+    if isprime(1001):
+        print(1)
+    if isprime(1009) == false:
+        print(1)
+    return 0
+
 main():
     let str = "Hello, world!"
     let str2 = "F# is the best!"
@@ -76,5 +107,6 @@ main():
     print(optest())
     print(comptest())
     print(booltest())
+    print(primetest())
     print("done.")
     return 0
