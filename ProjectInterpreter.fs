@@ -67,7 +67,7 @@ let popScope (scope : Scope) : Scope =
 
 let pushScope name rules defaultMapping (scope : Scope) : Scope =
     let nrs, refs = scope
-    let newLocation = name :: nrs;
+    let newLocation = name :: nrs
     newLocation, Map.add newLocation (rules, defaultMapping) refs
 
 let pushTempScope (scope : Scope) : Scope =
