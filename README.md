@@ -10,14 +10,14 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 - Build: `dotnet build`
 - Run file: `dotnet run <filename>`
 
-## Features
+## Program Features
 - Parsing & Interpreting
     - Multi-step parsing
     - Line number information for debugging
 - Web Client
     - Parsing/printing output
 
-### Language Features
+## Language Features
 - Function definitions
     - Entry point (main() function)
 - Function calls
@@ -41,3 +41,17 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - String (e.g. "Hello, world!")
     - Integer (e.g. 5, -12)
     - Boolean (true/false)
+
+## Upcoming Features
+- Support for property accessors (. operator)
+- Support for unary operators (Unary -, Unary !)
+- Card game engine
+
+## Potential features
+- Escape characters in strings
+- String concatenation
+- Multi-line statements/expressions
+- Floating point numbers
+- Lambda expressions
+- Recursion
+- Multi-file support
