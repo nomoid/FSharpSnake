@@ -7,7 +7,7 @@ exception BuiltinException of string
 let singlearg name args =
     match args with
     | [x] -> x
-    | _ -> raise (BuiltinException 
+    | _ -> raise (BuiltinException
             (sprintf "%s: can only be called with one argument" name))
 
 let bprint args =
@@ -36,40 +36,40 @@ let rec beqop e1 e2 =
         | ValInt a, ValInt b -> a = b
         | ValString s1, ValString s2 -> s1 = s2
         | ValFunc (n1, b1), ValFunc (n2, b2) -> (n1 = n2) && (b1 = b2)
-        | ValList l1, ValList l2 -> 
-            List.fold (&&) true 
-                (List.zip l1 l2 |> List.map (fun (x, y) -> 
+        | ValList l1, ValList l2 ->
+            List.fold (&&) true
+                (List.zip l1 l2 |> List.map (fun (x, y) ->
                     match beqop x y with
                     | ValBool inner -> inner
                     | _ -> false)
                 )
         | ValReference r1, ValReference r2 -> r1 = r2
-        | _, _ -> 
+        | _, _ ->
             raise (BuiltinException "==: type error on one or more arguments")
     ValBool res
 
 let bcompop op numOp e1 e2 =
     match e1, e2 with
     | ValInt a, ValInt b -> ValBool (numOp a b)
-    | _, _ -> 
-        raise (BuiltinException 
-            (sprintf "%s: type error on one or more arguments" 
+    | _, _ ->
+        raise (BuiltinException
+            (sprintf "%s: type error on one or more arguments"
                 (optostr op)))
 
 let bboolop op numOp e1 e2 =
     match e1, e2 with
     | ValBool a, ValBool b -> ValBool (numOp a b)
-    | _, _ -> 
-        raise (BuiltinException 
-            (sprintf "%s: type error on one or more arguments" 
+    | _, _ ->
+        raise (BuiltinException
+            (sprintf "%s: type error on one or more arguments"
                 (optostr op)))
 
 let bnumop op numOp e1 e2 =
     match e1, e2 with
     | ValInt a, ValInt b -> ValInt (numOp a b)
-    | _, _ -> 
-        raise (BuiltinException 
-            (sprintf "%s: type error on one or more arguments" 
+    | _, _ ->
+        raise (BuiltinException
+            (sprintf "%s: type error on one or more arguments"
                 (optostr op)))
 
 let bunaryminus e =
@@ -106,7 +106,7 @@ let opto op =
 let bbinary bop =
     opto bop
 
-let builtins : Map<string, Value> = 
+let builtins : Map<string, Value> =
     [
         ("print", ValBuiltinFunc bprint)
         ("sqrt", ValBuiltinFunc bsqrt)

@@ -5,7 +5,7 @@ open ProjectInterpreter
 
 exception ParseFailureException of Option<int * string>
 
-//TODO 
+//TODO
 
 [<EntryPoint>]
 let main argv =
@@ -14,10 +14,10 @@ let main argv =
         let lines = File.ReadLines s |> List.ofSeq
 
         match parseComplete lines with
-        | ParseFailure onum -> 
+        | ParseFailure onum ->
             let oline = Option.map (fun x -> x, lines.[x-1]) onum
             raise (ParseFailureException oline)
-        | ParseSuccess dlist -> 
+        | ParseSuccess dlist ->
             //let s2 = (prettyprint dlist)
             //printfn "%s" s2
             //printfn "%O" dlist

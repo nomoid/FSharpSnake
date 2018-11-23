@@ -61,9 +61,9 @@ type Stmt =
 | AssignmentStmt of string * Expr
 | LetStmt of string * Expr
 | ReturnStmt of Expr
-| IfElseStmt of 
-    (Expr * List<Stmt>) * 
-    List<Expr * List<Stmt>> * 
+| IfElseStmt of
+    (Expr * List<Stmt>) *
+    List<Expr * List<Stmt>> *
     Option<List<Stmt>>
 | WhileStmt of Expr * List<Stmt>
 
@@ -84,9 +84,9 @@ type Value =
 | ValBuiltinFunc of (List<Value> -> Value)
 
 let prettyprintfunc stringify exprs =
-    "(" + (List.fold (fun a b -> 
+    "(" + (List.fold (fun a b ->
             (if a <> "" then a + ", " else "") + stringify b
-        ) "" exprs) 
+        ) "" exprs)
         + ")"
 
 let rec prettyprintexpr expr =
@@ -101,11 +101,11 @@ let rec prettyprintexpr expr =
     | UnaryMinus(e) -> sprintf "-%s" (prettyprintexpr e)
     | UnaryPlus(e) -> sprintf "+%s" (prettyprintexpr e)
     | UnaryNot(e) -> sprintf "!%s" (prettyprintexpr e)
-        
+       
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
 and prettyprintinfix op e1 e2 =
-    sprintf "%s %s %s" 
+    sprintf "%s %s %s"
             (prettyprintexpr e1) op (prettyprintexpr e2)
 
 let prettyprintassignment name expr =
@@ -132,22 +132,22 @@ let rec prettyprintstmt stmt =
     | LetStmt(name, expr) -> [prettyprintlet name expr]
     | ReturnStmt(expr) -> ["return " + prettyprintexpr expr]
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
-        let elseLines = 
+        let elseLines =
             match optionBlock with
             | None -> []
             | Some v -> prettyprintgroup "else" prettyprintstmt v
-        List.concat 
+        List.concat
             [
-                prettyprintgroup ("if " + prettyprintexpr cond) 
+                prettyprintgroup ("if " + prettyprintexpr cond)
                     prettyprintstmt block
-                List.collect (fun (innerCond, innerBlock) -> 
+                List.collect (fun (innerCond, innerBlock) ->
                     (prettyprintgroup ("elif " + prettyprintexpr innerCond)
                         prettyprintstmt innerBlock)
                     ) condBlockList
                 elseLines
             ]
     | WhileStmt(cond, block) ->
-        prettyprintgroup ("while " + prettyprintexpr cond) 
+        prettyprintgroup ("while " + prettyprintexpr cond)
                     prettyprintstmt block
 
 
@@ -158,10 +158,10 @@ let prettyprintlist printer xs =
 
 let rec prettyprintdef def =
     match def with
-    | FunctionDefn(name, args, body) -> 
-        prettyprintgroup (name + (prettyprintfunc id args)) 
+    | FunctionDefn(name, args, body) ->
+        prettyprintgroup (name + (prettyprintfunc id args))
             prettyprintstmt body
-    | ScopeDefn(name, body) -> 
+    | ScopeDefn(name, body) ->
         prettyprintgroup name prettyprintdef body
     | AssignmentDefn(name, expr) -> [prettyprintassignment name expr]
 
@@ -174,9 +174,9 @@ let poption (parser: Parser<'a>) input : Outcome<'a Option> =
     | Failure -> Success (None, input)
 
 //parsers should not be empty
-//let pinfix (opparser: Parser<'a>) (leftparser: Parser<'b>) 
+//let pinfix (opparser: Parser<'a>) (leftparser: Parser<'b>)
 //    (rightparser: Parser<'c>) (combiner: 'b -> 'c -> 'd) : Parser<'d> =
-    
+   
 
 let isSymb c = is_regexp (c.ToString()) @"[_$]"
 let isLetterSymb c = is_letter c || isSymb c
@@ -186,12 +186,12 @@ let isNotQuote c = c <> '\"'
 let psymb = psat isSymb
 let plettersymb = psat isLetterSymb
 let pvalidchar = psat isValidChar
-let charListToString str = 
+let charListToString str =
     str |> List.map (fun x -> x.ToString()) |> String.concat ""
-let pidentifier = 
-    pseq plettersymb (pmany0 pvalidchar) 
-        (fun (x,xs) -> 
-            (x :: xs) 
+let pidentifier =
+    pseq plettersymb (pmany0 pvalidchar)
+        (fun (x,xs) ->
+            (x :: xs)
             |> charListToString
         )
 
@@ -199,7 +199,7 @@ let pidsep = (poption (pchar '?'))
 let pidExpr = pidentifier |>> Identifier
 
 let plistsep sepParser innerParser =
-    poption (pseq (pmany0 (pleft innerParser sepParser)) innerParser 
+    poption (pseq (pmany0 (pleft innerParser sepParser)) innerParser
         (fun (xs, x) -> List.append xs [x])) |>>
         (fun x ->
             match x with
@@ -207,10 +207,10 @@ let plistsep sepParser innerParser =
             | None -> List.empty
         )
 
-let pFuncHelper innerParser = 
+let pFuncHelper innerParser =
     pseq (pleft pidentifier (pchar '('))
-        (pleft 
-            (plistsep (pchar ',') innerParser) 
+        (pleft
+            (plistsep (pchar ',') innerParser)
             (pchar ')')
         )
         (fun (name, args) -> (name, args))
@@ -225,8 +225,8 @@ let pFuncCallStmt = pFuncCall |>> FunctionCallStmt
 
 let pPosInt = (pmany1 pdigit |>> charListToString |>> int)
 
-let pNumLiteral = 
-    pseq (poption (pchar '-')) 
+let pNumLiteral =
+    pseq (poption (pchar '-'))
         pPosInt
         (fun (oc, num) ->
             match oc with
@@ -237,9 +237,9 @@ let pNumLiteral =
 //String parsing is handled by the upper parser
 
 //let pStrInner = (pright (pchar '\\') pitem) <|> (psat isNotQuote)
-//let pStrLiteral = 
-//    pleft (pright (pchar '"') (pmany0 pStrInner)) (pchar '"') 
-//        |>> charListToString 
+//let pStrLiteral =
+//    pleft (pright (pchar '"') (pmany0 pStrInner)) (pchar '"')
+//        |>> charListToString
 //        |>> StringLiteral
 let pTrueLiteral = pfresult (pstr "true") (BoolLiteral true)
 let pFalseLiteral = pfresult (pstr "false") (BoolLiteral false)
@@ -255,8 +255,8 @@ let pUnaryNot = pright (pchar '!') pExpr |>> UnaryNot
 
 let pUnaryOp = pUnaryMinus <|> pUnaryPlus <|> pUnaryNot
 
-let pConsumingExpr = 
-    pUnaryOp 
+let pConsumingExpr =
+    pUnaryOp
     <|> pFuncCallExpr
     <|> pBoolLiteral
     <|> pidExpr
@@ -266,7 +266,7 @@ let pConsumingExpr =
 let makebin bop (a, b) =
     BinaryExpr (bop, a, b)
 
-let pbinop op = 
+let pbinop op =
     let str = (optostr op)
     let exprgen = makebin op
     pfresult (pstr str) (op, exprgen)
@@ -278,7 +278,7 @@ let rec combineSinglePrecOp right cexpr xs predicate =
     match xs with
     | [] -> cexpr, []
     | ((name, op), term) :: remaining ->
-        let expr, newRemaining = 
+        let expr, newRemaining =
             combineSinglePrecOp right term remaining predicate
         if predicate name then
             let opin = if right then (cexpr, expr) else (expr, cexpr)
@@ -289,52 +289,52 @@ let rec combineSinglePrecOp right cexpr xs predicate =
 let rec rightToLeftAssoc cexpr xs ys =
     match xs with
     | [] -> cexpr, ys
-    | (opn, expr) :: remaining -> 
+    | (opn, expr) :: remaining ->
         rightToLeftAssoc expr remaining ((opn, cexpr) :: ys)
 
 let rec combineOps right precs (cexpr, xs) =
     match precs with
-    | [] -> 
+    | [] ->
         let newExpr, _ = combineSinglePrecOp right cexpr xs (fun x -> true)
         newExpr
     | singlePrec :: remaining ->
-        let newExpr, nxs = 
-            combineSinglePrecOp right cexpr xs 
+        let newExpr, nxs =
+            combineSinglePrecOp right cexpr xs
                 (fun x -> List.contains x singlePrec)
         combineOps right remaining (newExpr, nxs)
 
-let combineOpsRight precs (cexpr, xs) = 
+let combineOpsRight precs (cexpr, xs) =
     combineOps true precs (cexpr, xs)
 
 let combineOpsLeft precs (cexpr, xs) =
     combineOps false precs (rightToLeftAssoc cexpr xs [])
 
-pExprImpl := 
-    pseq pConsumingExpr 
-        (pmany0 
-            (pseq pinfixop 
+pExprImpl :=
+    pseq pConsumingExpr
+        (pmany0
+            (pseq pinfixop
                 pConsumingExpr
                 id
             )
         )
         (combineOpsLeft precedences)
-    
+   
 
-let pAssignment = 
-    pseq (pleft pidentifier (pchar '=')) pExpr 
+let pAssignment =
+    pseq (pleft pidentifier (pchar '=')) pExpr
         (fun (name, expr) -> (name, expr))
 let pAssignmentStmt = pAssignment |>> AssignmentStmt
 let pAssignmentGlobal = pAssignment |>> AssignmentDefn
 
 
-let pIdAssign = 
+let pIdAssign =
     (pseq (pleft pidentifier pidsep) pAssignment)
         (fun (a, b) ->
             (a, b)
         )
 
-let pIdExpr = 
-    (pseq (pleft pidentifier pidsep) pExpr) 
+let pIdExpr =
+    (pseq (pleft pidentifier pidsep) pExpr)
         (fun (a, b) ->
             (a, b)
         )
@@ -353,7 +353,7 @@ let pWordAssignStmt = pWordStmt pIdAssign "let" LetStmt
 
 let pWordExprStmt = pWordStmt pIdExpr "return" ReturnStmt
 
-let pStmt = 
+let pStmt =
     pWordExprStmt
     <|> pWordAssignStmt
     <|> pFuncCallStmt
@@ -376,7 +376,7 @@ let pBlock parser = pbetween (pstr "{b{") (pstr "}b}") (pmany1 parser)
 let pFuncHeader = pFuncHelper pidentifier
 
 let pGroup header blockElem converter =
-    pbetween (pstr "{s") (pstr "}s}") (pMaxLine 
+    pbetween (pstr "{s") (pstr "}s}") (pMaxLine
         (
             pseq header (pBlock blockElem)
                 converter
@@ -394,13 +394,13 @@ let rec pFuncScope header =
     let b : Parser<Stmt> = ((pLine pStmt) <|> pInnerScope)
     pGroup header b
 and pIfGroup a =
-    a |> 
-        (pseq 
+    a |>
+        (pseq
             (pseq (pFuncScope pIfHeader id)
                 (pmany0 (pFuncScope pElifHeader id))
                 id
             ) (poption (pFuncScope pElseHeader (fun (_, stmts) -> stmts)))
-            (fun (((cond, block), condBlockList), optionBlock) -> 
+            (fun (((cond, block), condBlockList), optionBlock) ->
                 IfElseStmt((cond, block), condBlockList, optionBlock))
         )
 and pWhileGroup a =
@@ -414,7 +414,7 @@ let pScope =
         (fun (name, defns) -> ScopeDefn(name, defns))
 
 let pFunc =
-    pFuncScope pFuncHeader 
+    pFuncScope pFuncHeader
         (fun ((name, args), block) -> FunctionDefn(name, args, block))
 
 pDefnImpl := pFunc <|> pScope <|> (pLine pAssignmentGlobal)
@@ -431,7 +431,7 @@ let parseLower input : List<Defn> option =
 let cleanLower input =
     let clean0 = Regex.Replace(input, @"[\n\r]+", "")
     let clean1 = Regex.Replace(clean0, @"[\s]{2,}", " ")
-    let clean2 = 
+    let clean2 =
         Regex.Replace(clean1, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1?$2")
     let clean3 = Regex.Replace(clean2, @" ", "")
     clean3
@@ -479,15 +479,15 @@ let parseUpper (stringList : List<string>) =
     let newLines = List.filter (fun x -> snd x <> "") zipped
     parseUpperNum newLines
 
-let stringExtract i = 
+let stringExtract i =
     sprintf "$str_%i$" i
 
-let stringExtractRegex i = 
+let stringExtractRegex i =
     sprintf "$$str_%i$$" i
 
 let stringReplace (str : string) index length replacement =
-    String.concat "" [str.[0 .. index - 1]; 
-                        replacement; 
+    String.concat "" [str.[0 .. index - 1];
+                        replacement;
                         str.[index + length .. str.Length - 1]]
 
 let extractQuotes line (strings : string[]) =
@@ -498,11 +498,11 @@ let extractQuotes line (strings : string[]) =
         let text = firstMatch.Value
         let text2 = Regex.Replace(text, "\\\\\\\\", "\\\\")
         let text3 = Regex.Replace(text2, "\\\\\"", "\"")
-        //printfn "L:%s;fmv:%s;fmi:%i;fml:%i" line text 
+        //printfn "L:%s;fmv:%s;fmi:%i;fml:%i" line text
         //    firstMatch.Index firstMatch.Length
-        let outLine = 
+        let outLine =
             quoteRegex.Replace(line, stringExtract strings.Length, 1)
-            //stringReplace line firstMatch.Index firstMatch.Length 
+            //stringReplace line firstMatch.Index firstMatch.Length
             //    (stringExtract strings.Length)
         //printfn "a:%s,b:%A,c:%A" line outLine (stringExtract strings.Length)
         //Text contains quotes, so remove first and last char
@@ -545,13 +545,13 @@ let rec upperToLower blockList =
 and upperToLowerSingle block =
     match block with
     | NoBlock -> UTLSuccess ""
-    | Line (num, line) -> 
+    | Line (num, line) ->
         //Make sure line does not start with spaces
         if line.StartsWith " " then
-            UTLFailure num 
+            UTLFailure num
         else
             UTLSuccess ((sprintf "{l%i{" num) + line + "}l}")
-    | SubBlock(num, title, sub) -> 
+    | SubBlock(num, title, sub) ->
         if title.StartsWith " " then
             UTLFailure num
         else
@@ -562,7 +562,7 @@ and upperToLowerSingle block =
 let assignStrings assigns =
     let xs = Array.toList assigns
     let xsz = List.zip [0..(xs.Length-1)] xs
-    List.map (fun (index, elem) -> 
+    List.map (fun (index, elem) ->
         AssignmentDefn(stringExtract index, StringLiteral(elem))) xsz
 
 type ParseResult =
@@ -578,11 +578,11 @@ let parseComplete lines =
     | UTLSuccess lower ->
         let cleaned = cleanLower lower
         match parseLower cleaned with
-        | None -> 
+        | None ->
             let res = (Some maxLine)
             maxLine <- 0
             ParseFailure res
-        | Some s -> 
+        | Some s ->
             maxLine <- 0
             ParseSuccess (List.append (assignStrings assigns) s)
         

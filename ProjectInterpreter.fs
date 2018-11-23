@@ -43,11 +43,11 @@ let rec makeNamespace defns =
     | defn :: remaining ->
         let ending = makeNamespace remaining
         match defn with
-        | FunctionDefn (name, args, body) -> 
+        | FunctionDefn (name, args, body) ->
             (name, ONSFunc(args, body)) :: ending
-        | ScopeDefn (name, body) -> 
+        | ScopeDefn (name, body) ->
             (name, ONSSubspace (makeNamespace body)) :: ending
-        | AssignmentDefn (name, expr) -> 
+        | AssignmentDefn (name, expr) ->
             (name, ONSVar (Unevaled expr)) :: ending
 let findRef (scope : Scope) : RefType =
     let nrs, refs = scope
@@ -108,8 +108,8 @@ let resolveName (scope : Scope) name : Value * Scope =
             // Try finding in builtins
             match Map.tryFind name builtins with
             | Some v2 -> v2, ([], refs)
-            | None -> 
-                raise (InterpreterException 
+            | None ->
+                raise (InterpreterException
                     (sprintf "Name \"%s\" cannot be resolved" name))
     resV, newScope
 
@@ -129,12 +129,12 @@ let updateName (scope : Scope) name newVal : Scope =
                 | None ->
                     match updateSubspaces (remaining, refs) with
                     | None -> None
-                    | Some (innerScope, newRefs) -> 
+                    | Some (innerScope, newRefs) ->
                         Some (sname :: innerScope, newRefs)
                 | Some _ ->
                     Some (addToMapping scope name newVal)
-                    
-        let currResolveName = updateSubspaces scope      
+                   
+        let currResolveName = updateSubspaces scope     
         match currResolveName with
         | Some v -> v
         | None ->
@@ -151,10 +151,10 @@ let rec makeArgsMap argNames args =
             match Map.tryFind anonArgs remainingMap with
             | Some al ->
                 match al with
-                | ValList l -> 
+                | ValList l ->
                     Map.add anonArgs (ValList (arg :: l)) remainingMap
                 | _ -> raise (InterpreterException "Anon args is not a list")
-            | None -> 
+            | None ->
                 Map.add anonArgs (ValList (arg :: List.empty)) remainingMap
         | argName :: remainingNames ->
             let remainingMap = makeArgsMap remainingNames remaining
@@ -206,7 +206,7 @@ and runWhile scope cond block =
     match v with
     // Condition is false
     | None -> None, newScope
-    | Some vin -> 
+    | Some vin ->
         match vin with
         // Inner return
         | Some _ -> vin, newScope
@@ -224,7 +224,7 @@ and evalStmt (nsScope : Scope) stmt =
     | LetStmt(name, expr) ->
         let v, newScope = evalExpr nsScope expr
         None, addToMapping newScope name v
-    | ReturnStmt expr -> 
+    | ReturnStmt expr ->
         let v, newScope = evalExpr nsScope expr
         Some v, newScope
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
@@ -253,7 +253,7 @@ and functionCall (scope : Scope) name args =
         let ov, newScope2 = evalStmts newScope stmts
         match ov with
         | None -> raise (InterpreterException "Function has no return value")
-        | Some v -> 
+        | Some v ->
             let _, refsNew = popScope newScope2
             //printfn "Pop f: %A" (fst scope)
             //Pop function local scope
@@ -299,7 +299,7 @@ and evalInfix (scope : Scope) processor e1 e2 =
 //    | pair :: remaining ->
 //        let map = convertToNamespace remaining
 //        let name, ons = pair
-//        let ns = 
+//        let ns =
 //            match ons with
 //            | ONSVar v -> NSVar v
 //            | ONSFunc(args, body) -> NSFunc(args, body)
@@ -323,24 +323,24 @@ let rec evalGlobals (ns : List<string * OrderedNamespace>) =
                     | Unevaled expr ->
                         let newVal, sc = evalExpr scope expr
                         NSVar (Evaled newVal), addToMapping sc name newVal
-                    | Evaled _ -> 
-                        raise (InterpreterException 
+                    | Evaled _ ->
+                        raise (InterpreterException
                             "Expr shound not be already evaluated")
-                | ONSFunc(args, body) -> 
-                    NSFunc(args, body), 
+                | ONSFunc(args, body) ->
+                    NSFunc(args, body),
                         addToMapping scope name (ValFunc(args, body))
-                | ONSSubspace list -> 
+                | ONSSubspace list ->
                     // Push and pop a new scope
-                    let newVal, sc = 
-                        evalGlobalInner list 
+                    let newVal, sc =
+                        evalGlobalInner list
                             (pushScope (scopeLocalName name) (PersistentScope :: List.empty) Map.empty scope)
                     NSSubspace (newVal), popScope sc
             let map, newNewScope = evalGlobalInner remaining newScope
-            Map.add name ns map, newNewScope 
-    evalGlobalInner ns ([globalScopeName], 
-        Map.add 
+            Map.add name ns map, newNewScope
+    evalGlobalInner ns ([globalScopeName],
+        Map.add
             [globalScopeName]
-            ((PersistentScope :: List.empty), Map.empty) 
+            ((PersistentScope :: List.empty), Map.empty)
             Map.empty)
 
 
@@ -348,8 +348,8 @@ let runMain defns =
     let ons = makeNamespace defns
     let ns, scope = evalGlobals ons
     match Map.tryFind mainFunc ns with
-    | Some v -> 
+    | Some v ->
         let res, _ = functionCall scope mainFunc []
         res
     | None -> raise (InterpreterException "No main function found")
-        
+       
