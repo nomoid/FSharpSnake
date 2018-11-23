@@ -282,28 +282,35 @@ and evalExpr (nsScope : Scope) expr : (Value * Scope) =
     | BoolLiteral b -> ValBool b, nsScope
     | ParensExpr e -> evalExpr nsScope e
     | BinaryExpr(op, e1, e2) -> evalInfix nsScope (bbinary op) e1 e2
+    | UnaryMinus e -> evalWithFunc nsScope e bunaryminus
+    | UnaryPlus e -> evalWithFunc nsScope e bunaryplus
+    | UnaryNot e -> evalWithFunc nsScope e bunarynot
+and evalWithFunc scope e func =
+    let v, newScope = evalExpr scope e
+    func v, newScope
 and evalInfix (scope : Scope) processor e1 e2 =
     let vLeft, newScope1 = evalExpr scope e1
     let vRight, newScope2 = evalExpr newScope1 e2
     processor vLeft vRight, newScope2
-  
-let rec convertToNamespace (ns : List<string * OrderedNamespace>) =
-    match ns with
-    | [] -> Map.empty
-    | pair :: remaining ->
-        let map = convertToNamespace remaining
-        let name, ons = pair
-        let ns = 
-            match ons with
-            | ONSVar v -> NSVar v
-            | ONSFunc(args, body) -> NSFunc(args, body)
-            | ONSSubspace list -> NSSubspace (convertToNamespace list)
-        Map.add name ns map
+
+//let rec convertToNamespace (ns : List<string * OrderedNamespace>) =
+//    match ns with
+//    | [] -> Map.empty
+//    | pair :: remaining ->
+//        let map = convertToNamespace remaining
+//        let name, ons = pair
+//        let ns = 
+//            match ons with
+//            | ONSVar v -> NSVar v
+//            | ONSFunc(args, body) -> NSFunc(args, body)
+//            | ONSSubspace list -> NSSubspace (convertToNamespace list)
+//        Map.add name ns map
+
 
 let rec evalGlobals (ns : List<string * OrderedNamespace>) =
     let scopeLocalName name =
         sprintf "$scopelocal_%s$" name
-    let firstPass = convertToNamespace ns
+    //let firstPass = convertToNamespace ns
     let rec evalGlobalInner ns scope =
         match ns with
         | [] -> Map.empty, scope
@@ -316,7 +323,7 @@ let rec evalGlobals (ns : List<string * OrderedNamespace>) =
                     | Unevaled expr ->
                         let newVal, sc = evalExpr scope expr
                         NSVar (Evaled newVal), addToMapping sc name newVal
-                    | Evaled value -> 
+                    | Evaled _ -> 
                         raise (InterpreterException 
                             "Expr shound not be already evaluated")
                 | ONSFunc(args, body) -> 

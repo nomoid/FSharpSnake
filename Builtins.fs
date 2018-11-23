@@ -72,6 +72,21 @@ let bnumop op numOp e1 e2 =
             (sprintf "%s: type error on one or more arguments" 
                 (optostr op)))
 
+let bunaryminus e =
+    match e with
+    | ValInt v -> ValInt (-v)
+    | _ -> raise (BuiltinException "-: type error on one or more arguments")
+
+let bunaryplus e =
+    match e with
+    | ValInt v -> ValInt (v)
+    | _ -> raise (BuiltinException "-: type error on one or more arguments")
+
+let bunarynot e =
+    match e with
+    | ValBool v -> ValBool (not v)
+    | _ -> raise (BuiltinException "-: type error on one or more arguments")
+
 let opto op =
     match op with
     | Add -> bnumop Add (+)

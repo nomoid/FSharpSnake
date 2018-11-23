@@ -52,6 +52,9 @@ type Expr =
 | BoolLiteral of bool
 | ParensExpr of Expr
 | BinaryExpr of BinaryOp * Expr * Expr
+| UnaryMinus of Expr
+| UnaryPlus of Expr
+| UnaryNot of Expr
 
 type Stmt =
 | FunctionCallStmt of string * List<Expr>
@@ -95,6 +98,9 @@ let rec prettyprintexpr expr =
     | BoolLiteral(b) -> if b then "true" else "false"
     | ParensExpr(e) -> sprintf "(%s)" (prettyprintexpr e)
     | BinaryExpr(op, e1, e2) -> prettyprintinfix (optostr op) e1 e2
+    | UnaryMinus(e) -> sprintf "-%s" (prettyprintexpr e)
+    | UnaryPlus(e) -> sprintf "+%s" (prettyprintexpr e)
+    | UnaryNot(e) -> sprintf "!%s" (prettyprintexpr e)
         
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
@@ -241,8 +247,17 @@ let pBoolLiteral = pTrueLiteral <|> pFalseLiteral
 
 let pParens = pbetween (pchar '(') (pchar ')') pExpr |>> ParensExpr
 
+let pUnaryMinus = pright (pchar '-') pExpr |>> UnaryMinus
+
+let pUnaryPlus = pright (pchar '+') pExpr |>> UnaryPlus
+
+let pUnaryNot = pright (pchar '!') pExpr |>> UnaryNot
+
+let pUnaryOp = pUnaryMinus <|> pUnaryPlus <|> pUnaryNot
+
 let pConsumingExpr = 
-    pFuncCallExpr
+    pUnaryOp 
+    <|> pFuncCallExpr
     <|> pBoolLiteral
     <|> pidExpr
     <|> pNumLiteral
