@@ -5,28 +5,35 @@ open System.Text.RegularExpressions
 open Parser
 
 type BinaryOp =
-// Numerical operations
-| Add
-| Sub
-| Mult
-| Div
-| Mod
-// Boolean operations
-| And
-| Or
-// Comparison operations
-| Eq
-| Neq
-| Leq
-| Geq
-| Lt
-| Gt
+    // Numerical operations
+    | Add
+    | Sub
+    | Mult
+    | Div
+    | Mod
+    // Boolean operations
+    | And
+    | Or
+    // Comparison operations
+    | Eq
+    | Neq
+    | Leq
+    | Geq
+    | Lt
+    | Gt
 //TODO operators
 //Unary Not, Unary Neg
 //Dot
 //Dot assign
 let binaryOps = [Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt]
-let precedences = [[Mult; Div; Mod]; [Add; Sub]; [Leq; Geq; Lt; Gt]; [Eq; Neq]; [And]; [Or]]
+let precedences = [
+    [Mult; Div; Mod]; 
+    [Add; Sub]; 
+    [Leq; Geq; Lt; Gt]; 
+    [Eq; Neq]; 
+    [And]; 
+    [Or]
+]
 
 let optostr op =
     match op with
@@ -45,43 +52,43 @@ let optostr op =
     | Or -> "|"
 
 type Expr =
-| FunctionCallExpr of string * List<Expr>
-| Identifier of string
-| NumLiteral of int
-| StringLiteral of string
-| BoolLiteral of bool
-| ParensExpr of Expr
-| BinaryExpr of BinaryOp * Expr * Expr
-| UnaryMinus of Expr
-| UnaryPlus of Expr
-| UnaryNot of Expr
+    | FunctionCallExpr of string * Expr list
+    | Identifier of string
+    | NumLiteral of int
+    | StringLiteral of string
+    | BoolLiteral of bool
+    | ParensExpr of Expr
+    | BinaryExpr of BinaryOp * Expr * Expr
+    | UnaryMinus of Expr
+    | UnaryPlus of Expr
+    | UnaryNot of Expr
 
 type Stmt =
-| FunctionCallStmt of string * List<Expr>
-| AssignmentStmt of string * Expr
-| LetStmt of string * Expr
-| ReturnStmt of Expr
-| IfElseStmt of
-    (Expr * List<Stmt>) *
-    List<Expr * List<Stmt>> *
-    Option<List<Stmt>>
-| WhileStmt of Expr * List<Stmt>
+    | FunctionCallStmt of string * Expr list
+    | AssignmentStmt of string * Expr
+    | LetStmt of string * Expr
+    | ReturnStmt of Expr
+    | IfElseStmt of
+        (Expr * Stmt list) *
+        ((Expr * Stmt list) list) *
+        Stmt list option
+    | WhileStmt of Expr * Stmt list
 
 type Defn =
-// Function with (name, arg_names[], body)
-| FunctionDefn of string * List<string> * List<Stmt>
-| ScopeDefn of string * List<Defn>
-| AssignmentDefn of string * Expr
+    // Function with (name, arg_names[], body)
+    | FunctionDefn of string * string list * Stmt list
+    | ScopeDefn of string * Defn list
+    | AssignmentDefn of string * Expr
 
 type Value =
-| ValNone
-| ValBool of bool
-| ValInt of int
-| ValString of string
-| ValFunc of List<string> * List<Stmt>
-| ValList of List<Value>
-| ValReference of string
-| ValBuiltinFunc of (List<Value> -> Value)
+    | ValNone
+    | ValBool of bool
+    | ValInt of int
+    | ValString of string
+    | ValFunc of string list * Stmt list
+    | ValList of Value list
+    | ValReference of string
+    | ValBuiltinFunc of (Value list -> Value)
 
 let prettyprintfunc stringify exprs =
     "(" + (List.fold (fun a b ->
@@ -422,7 +429,7 @@ let pProgram = pmany1 pDefn
 
 let grammar = pleft pProgram peof
 
-let parseLower input : List<Defn> option =
+let parseLower input : Defn list option =
     maxLine <- 0
     match grammar (prepare input) with
     | Success(e,_) -> Some e
@@ -438,9 +445,9 @@ let cleanLower input =
 
 
 type Block =
-| NoBlock
-| Line of int * string
-| SubBlock of int * string * List<Block>
+    | NoBlock
+    | Line of int * string
+    | SubBlock of int * string * Block list
 
 let linewithnum num l =
     sprintf "%04i:%s" num l
@@ -452,7 +459,7 @@ let rec prettyprintblock block =
     | SubBlock(_, title, sub) ->
         title + ":" :: (indent (sub |> List.collect prettyprintblock))
 
-let rec findIndented (lineList : List<int * string>) =
+let rec findIndented (lineList : (int * string) list) =
     match lineList with
     | [] -> [], []
     | (num, line) :: remaining ->
@@ -474,7 +481,7 @@ let rec parseUpperNum lineList =
         else
             Line (num, line) :: (parseUpperNum remaining)
 
-let parseUpper (stringList : List<string>) =
+let parseUpper (stringList : string list) =
     let zipped = List.zip [1..stringList.Length] stringList
     let newLines = List.filter (fun x -> snd x <> "") zipped
     parseUpperNum newLines
@@ -530,8 +537,8 @@ let cleanUpper stringList =
     newLines, strings
 
 type UpperToLowerResult =
-| UTLSuccess of string
-| UTLFailure of int
+    | UTLSuccess of string
+    | UTLFailure of int
 
 let rec upperToLower blockList =
     let upperToLowerInner state block =
@@ -566,9 +573,9 @@ let assignStrings assigns =
         AssignmentDefn(stringExtract index, StringLiteral(elem))) xsz
 
 type ParseResult =
-| ParseSuccess of List<Defn>
-//Line failed on
-| ParseFailure of Option<int>
+    | ParseSuccess of Defn list
+    //Line failed on
+    | ParseFailure of int option
 
 let parseComplete lines =
     let cleanLines, assigns = cleanUpper lines

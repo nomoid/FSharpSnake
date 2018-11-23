@@ -11,26 +11,26 @@ let globalScopeName = "$scopeglobal$"
 let mainFunc = "main"
 
 type ScopeRules =
-| PersistentScope
-type FuncType = List<string> * List<Stmt>
-type RefType = List<ScopeRules> * Map<string, Value>
-type NoRefScope = List<string>
+    | PersistentScope
+type FuncType = string list * Stmt list
+type RefType = ScopeRules list * Map<string, Value>
+type NoRefScope = string list
 type Refs = Map<NoRefScope, RefType>
 type Scope = NoRefScope * Refs
 
 type EvalExpr =
-| Unevaled of Expr
-| Evaled of Value
+    | Unevaled of Expr
+    | Evaled of Value
 
 type OrderedNamespace =
-| ONSSubspace of List<string * OrderedNamespace>
-| ONSVar of EvalExpr
-| ONSFunc of FuncType
+    | ONSSubspace of (string * OrderedNamespace) list
+    | ONSVar of EvalExpr
+    | ONSFunc of FuncType
 
 type Namespace =
-| NSSubspace of Map<string, Namespace>
-| NSVar of EvalExpr
-| NSFunc of FuncType
+    | NSSubspace of Map<string, Namespace>
+    | NSVar of EvalExpr
+    | NSFunc of FuncType
 
 //let references : System.Collections.Generic.Dictionary<string, Namespace>
 //    = new System.Collections.Generic.Dictionary<string, Namespace>()
@@ -89,7 +89,7 @@ let addToMapping (scope : Scope) name value : Scope =
 //the resolved object, not the current scope
 let resolveName (scope : Scope) name : Value * Scope =
     let _, refs = scope
-    let rec resolveSubspaces (scope : Scope) : Option<Value * Scope> =
+    let rec resolveSubspaces (scope : Scope) : (Value * Scope) option =
         let nrs, refs = scope
         match nrs with
         | [] -> None
@@ -119,7 +119,7 @@ let updateName (scope : Scope) name newVal : Scope =
     | [] -> raise (InterpreterException "Cannot update empty scope")
     | _ ->
         //Try finding existing value to update
-        let rec updateSubspaces (scope : Scope) : Option<Scope> =
+        let rec updateSubspaces (scope : Scope) : Scope option =
             let nrs, refs = scope
             match nrs with
             | [] -> None
@@ -293,7 +293,7 @@ and evalInfix (scope : Scope) processor e1 e2 =
     let vRight, newScope2 = evalExpr newScope1 e2
     processor vLeft vRight, newScope2
 
-//let rec convertToNamespace (ns : List<string * OrderedNamespace>) =
+//let rec convertToNamespace (ns : (string * OrderedNamespace) list) =
 //    match ns with
 //    | [] -> Map.empty
 //    | pair :: remaining ->
@@ -307,7 +307,7 @@ and evalInfix (scope : Scope) processor e1 e2 =
 //        Map.add name ns map
 
 
-let rec evalGlobals (ns : List<string * OrderedNamespace>) =
+let rec evalGlobals (ns : (string * OrderedNamespace) list) =
     let scopeLocalName name =
         sprintf "$scopelocal_%s$" name
     //let firstPass = convertToNamespace ns

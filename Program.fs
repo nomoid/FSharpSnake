@@ -3,9 +3,7 @@
 open ProjectParser
 open ProjectInterpreter
 
-exception ParseFailureException of Option<int * string>
-
-//TODO
+exception ParseFailureException of (int * string) option
 
 [<EntryPoint>]
 let main argv =

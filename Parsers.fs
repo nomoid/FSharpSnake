@@ -17,8 +17,8 @@ open System.Text.RegularExpressions
 type Input = string * bool
 
 type Outcome<'a> =
-| Success of result: 'a * remaining: Input
-| Failure
+    | Success of result: 'a * remaining: Input
+    | Failure
 
 type Parser<'a> = Input -> Outcome<'a>
 
