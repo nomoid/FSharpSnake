@@ -13,14 +13,19 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 ## Program Features
 - Parsing & Interpreting
     - Multi-step parsing
+    - Input validation
     - Line number information for debugging
+    - Fail-fast exceptions
 - Web Client
-    - Parsing/printing output
+    - Parsing
+    - Interpreting
+    - Printing output
 
 ## Language Features
 - Function definitions
     - Entry point (main() function)
 - Function calls
+    - Functions with arguments
 - Scope blocks
     - Indentation
 - Variables
@@ -36,15 +41,19 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Numeric (+, -, *, /, %)
     - Boolean (&, |)
     - Comparison (==, !=, <=, >=, <, >)
+    - Unary (-, +, !)
 - Parenthases
 - Literals
     - String (e.g. "Hello, world!")
     - Integer (e.g. 5, -12)
     - Boolean (true/false)
+    - Reference (this)
+- References
+    - Property accessor (e.g. player.name)
+    - Property function call  (e.g. player.turn())
 
 ## Upcoming Features
-- Support for property accessors (. operator)
-- Support for unary operators (Unary -, Unary !)
+- Support for property assignment (a.b = )
 - Card game engine
 
 ## Potential features
@@ -55,3 +64,4 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 - Lambda expressions
 - Recursion
 - Multi-file support
+- External language support

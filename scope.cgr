@@ -1,0 +1,15 @@
+outer = this
+x = 1
+
+foo(x):
+    return 2 * x
+
+main():
+    let x = 2
+    y = 3
+    print(outer.x)
+    print(outer.foo(outer.x))
+    outer = this
+    print(outer.y)
+    print(outer.x + this.x)
+    return 0

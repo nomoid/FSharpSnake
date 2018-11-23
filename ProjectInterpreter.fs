@@ -8,6 +8,16 @@ let anonArgs = "$anon$"
 let tempBlock = "$tempblock$"
 let globalScopeName = "$scopeglobal$"
 
+let blockPrefix = "" //TODO set block prefix
+let blockName name =
+    sprintf "$block_%s$" name
+
+let scopeLocalName name =
+    sprintf "$scopelocal_%s$" name
+
+let functionLocalName name =
+    sprintf "$funclocal_%s$" name
+
 let mainFunc = "main"
 
 type ScopeRules =
@@ -74,8 +84,6 @@ let pushTempScope (scope : Scope) : Scope =
     pushScope tempBlock List.empty Map.empty scope
 
 let pushFunctionLocalScope scopeName args (scope : Scope) : Scope =
-    let functionLocalName name =
-        sprintf "$funclocal_%s$" name
     pushScope (functionLocalName scopeName) List.empty args scope
 
 let addToMapping (scope : Scope) name value : Scope =
@@ -83,19 +91,22 @@ let addToMapping (scope : Scope) name value : Scope =
     let opts, mapping = findRef scope
     nrs, Map.add nrs (opts, Map.add name value mapping) refs
 
+let getFromMapping (scope : Scope) name : Value option =
+    let _, mapping = findRef scope
+    Map.tryFind name mapping
+
 //Name resolution & updating
 
 //Note: for this specific function, the first returned scope is the scope of
 //the resolved object, not the current scope
-let resolveName (scope : Scope) name : Value * Scope =
+let resolveName (scope : Scope) name : (Value * Scope) * Scope =
     let _, refs = scope
     let rec resolveSubspaces (scope : Scope) : (Value * Scope) option =
         let nrs, refs = scope
         match nrs with
         | [] -> None
         | _ :: remaining ->
-            let _, mapping = findRef scope
-            match Map.tryFind name mapping with
+            match getFromMapping scope name with
             //Try finding in above scopes
             | None -> resolveSubspaces (remaining, refs)
             //Try finding in current scope
@@ -111,7 +122,7 @@ let resolveName (scope : Scope) name : Value * Scope =
             | None ->
                 raise (InterpreterException
                     (sprintf "Name \"%s\" cannot be resolved" name))
-    resV, newScope
+    (resV, newScope), scope
 
 let updateName (scope : Scope) name newVal : Scope =
     let noRefScope, _ = scope
@@ -124,8 +135,7 @@ let updateName (scope : Scope) name newVal : Scope =
             match nrs with
             | [] -> None
             | sname :: remaining ->
-                let _, mapping = findRef scope
-                match Map.tryFind name mapping with
+                match getFromMapping scope name with
                 | None ->
                     match updateSubspaces (remaining, refs) with
                     | None -> None
@@ -162,6 +172,17 @@ let rec makeArgsMap argNames args =
                 raise (InterpreterException "Duplicate argument names")
             else
                 Map.add argName arg remainingMap
+
+
+let rec thisReference (scope : Scope) =
+    let nrs, refs = scope
+    match nrs with
+    | [] -> raise (InterpreterException "Invalid context for \"this\"")
+    | name :: remaining ->
+        if name.StartsWith(blockPrefix) then
+            nrs
+        else
+            thisReference (remaining, refs)
 
 //Program execution
 let rec executeBlock scope block =
@@ -216,7 +237,7 @@ and evalStmt (nsScope : Scope) stmt =
     match stmt with
     | FunctionCallStmt(name, args) ->
         let argVals, newScope = evalArgs nsScope args
-        let _, newScope2 = functionCall newScope name argVals
+        let _, newScope2 = functionCallLocal newScope name argVals
         None, newScope2
     | AssignmentStmt(name, expr) ->
         let v, newScope = evalExpr nsScope expr
@@ -241,10 +262,9 @@ and evalStmts (nsScope : Scope) stmts =
         match evalStmtResult with
         | Some v -> Some v, newScope
         | None -> evalStmts newScope remaining
-and functionCall (scope : Scope) name args =
+and functionCall (scope : Scope) name (scopeInner : Scope) func args =
     //printfn "Push f: %A" (fst scope)
     let nrsOuter, _ = scope
-    let (func, scopeInner) = resolveName scope name
     match func with
     | ValFunc (argNames, stmts) ->
         let argsMap = makeArgsMap argNames args
@@ -262,6 +282,12 @@ and functionCall (scope : Scope) name args =
         //printfn "Pop f: %A" (fst scope)
         f args, scope
     | _ -> raise (InterpreterException "Tried to call non-function object")
+and functionCallLocal (scope : Scope) name args =
+    let (func, scopeInner), scopeOuter = resolveName scope name
+    functionCall scopeOuter name scopeInner func args
+and functionCallProperty (scope: Scope) v name args =
+    let ((func, innerScope), outerScope) = accessProperty scope v name
+    functionCall outerScope name innerScope func args
 and evalArgs (nsScope : Scope) args =
     match args with
     | [] -> [], nsScope
@@ -269,22 +295,47 @@ and evalArgs (nsScope : Scope) args =
         let v, newScope = evalExpr nsScope arg
         let vals, finalScope = evalArgs newScope remaining
         v :: vals, finalScope
+and accessProperty (scope : Scope) v name =
+    let _, refs = scope
+    match v with
+    | ValReference xs ->
+        let res = getFromMapping (xs, refs) name
+        //let (a, _) = resolveName (xs, refs) name
+        match res with
+        | None -> 
+            raise (InterpreterException
+                (sprintf "Property \"%s\" not found" name))
+        | Some v -> (v, (xs, refs)), scope
+    | _ -> 
+        raise (InterpreterException 
+            "Tried accessing a property of an object without properties")
+
 and evalExpr (nsScope : Scope) expr : (Value * Scope) =
     match expr with
     | FunctionCallExpr (name, args) ->
         let argVals, newScope = evalArgs nsScope args
-        functionCall newScope name argVals
+        functionCallLocal newScope name argVals
     | Identifier name ->
-        let (v, _) = resolveName nsScope name
-        v, nsScope
+        let ((v, _), newScope) = resolveName nsScope name
+        v, newScope
     | NumLiteral n -> ValInt n, nsScope
     | StringLiteral str -> ValString str, nsScope
     | BoolLiteral b -> ValBool b, nsScope
+    | ThisLiteral -> ValReference (thisReference nsScope), nsScope
     | ParensExpr e -> evalExpr nsScope e
     | BinaryExpr(op, e1, e2) -> evalInfix nsScope (bbinary op) e1 e2
     | UnaryMinus e -> evalWithFunc nsScope e bunaryminus
     | UnaryPlus e -> evalWithFunc nsScope e bunaryplus
     | UnaryNot e -> evalWithFunc nsScope e bunarynot
+    | PropertyAccessor(expr, name) ->
+        let v, newScope = evalExpr nsScope expr
+        let ((v, _), newScope) = accessProperty newScope v name
+        v, newScope
+    | PropertyFunctionCall(expr, name, args) ->
+        let v, newScope1 = evalExpr nsScope expr
+        let argVals, newScope2 = evalArgs newScope1 args
+        functionCallProperty newScope2 v name argVals
+
 and evalWithFunc scope e func =
     let v, newScope = evalExpr scope e
     func v, newScope
@@ -308,8 +359,6 @@ and evalInfix (scope : Scope) processor e1 e2 =
 
 
 let rec evalGlobals (ns : (string * OrderedNamespace) list) =
-    let scopeLocalName name =
-        sprintf "$scopelocal_%s$" name
     //let firstPass = convertToNamespace ns
     let rec evalGlobalInner ns scope =
         match ns with
@@ -349,7 +398,7 @@ let runMain defns =
     let ns, scope = evalGlobals ons
     match Map.tryFind mainFunc ns with
     | Some v ->
-        let res, _ = functionCall scope mainFunc []
+        let res, _ = functionCallLocal scope mainFunc []
         res
     | None -> raise (InterpreterException "No main function found")
        

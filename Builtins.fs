@@ -102,6 +102,7 @@ let opto op =
     | Gt -> bcompop Gt (>)
     | And -> bboolop And (&&)
     | Or -> bboolop Or (||)
+    | Dot -> raise (BuiltinException ". is not a binary op")
 
 let bbinary bop =
     opto bop

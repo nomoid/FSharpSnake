@@ -21,12 +21,16 @@ type BinaryOp =
     | Geq
     | Lt
     | Gt
+    | Dot
 //TODO operators
 //Unary Not, Unary Neg
 //Dot
 //Dot assign
-let binaryOps = [Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt]
+let binaryOps = [
+    Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt; Dot
+]
 let precedences = [
+    [Dot];
     [Mult; Div; Mod]; 
     [Add; Sub]; 
     [Leq; Geq; Lt; Gt]; 
@@ -50,6 +54,7 @@ let optostr op =
     | Gt -> ">"
     | And -> "&"
     | Or -> "|"
+    | Dot -> "."
 
 type Expr =
     | FunctionCallExpr of string * Expr list
@@ -57,11 +62,14 @@ type Expr =
     | NumLiteral of int
     | StringLiteral of string
     | BoolLiteral of bool
+    | ThisLiteral
     | ParensExpr of Expr
     | BinaryExpr of BinaryOp * Expr * Expr
     | UnaryMinus of Expr
     | UnaryPlus of Expr
     | UnaryNot of Expr
+    | PropertyAccessor of Expr * string
+    | PropertyFunctionCall of Expr * string * Expr list
 
 type Stmt =
     | FunctionCallStmt of string * Expr list
@@ -87,7 +95,7 @@ type Value =
     | ValString of string
     | ValFunc of string list * Stmt list
     | ValList of Value list
-    | ValReference of string
+    | ValReference of string list
     | ValBuiltinFunc of (Value list -> Value)
 
 let prettyprintfunc stringify exprs =
@@ -103,11 +111,20 @@ let rec prettyprintexpr expr =
     | NumLiteral(num) -> sprintf "%i" num
     | StringLiteral(str) -> sprintf "\"%s\"" str
     | BoolLiteral(b) -> if b then "true" else "false"
+    | ThisLiteral -> "this"
     | ParensExpr(e) -> sprintf "(%s)" (prettyprintexpr e)
     | BinaryExpr(op, e1, e2) -> prettyprintinfix (optostr op) e1 e2
     | UnaryMinus(e) -> sprintf "-%s" (prettyprintexpr e)
     | UnaryPlus(e) -> sprintf "+%s" (prettyprintexpr e)
     | UnaryNot(e) -> sprintf "!%s" (prettyprintexpr e)
+    | PropertyAccessor(expr, name) -> 
+        sprintf "%s.%s"
+            (prettyprintexpr expr)
+            name
+    | PropertyFunctionCall(expr, name, exprs) ->
+        sprintf "%s.%s"
+            (prettyprintexpr expr)
+            (prettyprintcall name exprs)
        
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
@@ -180,6 +197,14 @@ let poption (parser: Parser<'a>) input : Outcome<'a Option> =
     | Success (res, rem) -> Success (Some res, rem)
     | Failure -> Success (None, input)
 
+let pmapoption (parser: Parser<'a option>) input : Outcome<'a> =
+    match parser input with
+    | Failure -> Failure
+    | Success (resv, rem) ->
+        match resv with
+        | None -> Failure
+        | Some s -> Success(s, rem)
+
 //parsers should not be empty
 //let pinfix (opparser: Parser<'a>) (leftparser: Parser<'b>)
 //    (rightparser: Parser<'c>) (combiner: 'b -> 'c -> 'd) : Parser<'d> =
@@ -248,6 +273,8 @@ let pNumLiteral =
 //    pleft (pright (pchar '"') (pmany0 pStrInner)) (pchar '"')
 //        |>> charListToString
 //        |>> StringLiteral
+
+let pThisLiteral = pfresult (pstr "this") (ThisLiteral)
 let pTrueLiteral = pfresult (pstr "true") (BoolLiteral true)
 let pFalseLiteral = pfresult (pstr "false") (BoolLiteral false)
 let pBoolLiteral = pTrueLiteral <|> pFalseLiteral
@@ -265,13 +292,20 @@ let pUnaryOp = pUnaryMinus <|> pUnaryPlus <|> pUnaryNot
 let pConsumingExpr =
     pUnaryOp
     <|> pFuncCallExpr
+    <|> pThisLiteral
     <|> pBoolLiteral
     <|> pidExpr
     <|> pNumLiteral
 //    <|> pStrLiteral
     <|> pParens
 let makebin bop (a, b) =
-    BinaryExpr (bop, a, b)
+    if bop = Dot then
+        match b with
+        | Identifier i -> Some (PropertyAccessor(a, i))
+        | FunctionCallExpr (name, args) -> Some (PropertyFunctionCall(a, name, args))
+        | _ -> None
+    else
+        Some (BinaryExpr (bop, a, b))
 
 let pbinop op =
     let str = (optostr op)
@@ -283,15 +317,18 @@ let pinfixop =
 
 let rec combineSinglePrecOp right cexpr xs predicate =
     match xs with
-    | [] -> cexpr, []
+    | [] -> Some (cexpr, [])
     | ((name, op), term) :: remaining ->
-        let expr, newRemaining =
-            combineSinglePrecOp right term remaining predicate
-        if predicate name then
-            let opin = if right then (cexpr, expr) else (expr, cexpr)
-            (op opin), newRemaining
-        else
-            cexpr, ((name, op), expr) :: newRemaining
+        match combineSinglePrecOp right term remaining predicate with
+        | None -> None
+        | Some (expr, newRemaining) ->
+            if predicate name then
+                let opin = if right then (cexpr, expr) else (expr, cexpr)
+                match (op opin) with
+                | None -> None
+                | Some v -> Some (v, newRemaining)
+            else
+                Some (cexpr, ((name, op), expr) :: newRemaining)
 
 let rec rightToLeftAssoc cexpr xs ys =
     match xs with
@@ -302,13 +339,16 @@ let rec rightToLeftAssoc cexpr xs ys =
 let rec combineOps right precs (cexpr, xs) =
     match precs with
     | [] ->
-        let newExpr, _ = combineSinglePrecOp right cexpr xs (fun x -> true)
-        newExpr
+        match combineSinglePrecOp right cexpr xs (fun _ -> true) with
+        | None -> None
+        | Some (newExpr, _) -> Some newExpr
     | singlePrec :: remaining ->
-        let newExpr, nxs =
+        let res = 
             combineSinglePrecOp right cexpr xs
                 (fun x -> List.contains x singlePrec)
-        combineOps right remaining (newExpr, nxs)
+        match res with
+        | None -> None
+        | Some (newExpr, nxs) -> combineOps right remaining (newExpr, nxs)
 
 let combineOpsRight precs (cexpr, xs) =
     combineOps true precs (cexpr, xs)
@@ -317,14 +357,15 @@ let combineOpsLeft precs (cexpr, xs) =
     combineOps false precs (rightToLeftAssoc cexpr xs [])
 
 pExprImpl :=
-    pseq pConsumingExpr
-        (pmany0
-            (pseq pinfixop
-                pConsumingExpr
-                id
+    pmapoption
+        (pseq pConsumingExpr
+            (pmany0
+                (pseq pinfixop
+                    pConsumingExpr
+                    id
+                )
             )
-        )
-        (combineOpsLeft precedences)
+            (combineOpsLeft precedences))
    
 
 let pAssignment =
