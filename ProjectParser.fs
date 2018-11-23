@@ -255,7 +255,12 @@ let pFuncCall = pFuncHelper pExpr
 let pFuncCallExpr = pFuncCall |>> FunctionCallExpr
 let pFuncCallStmt = pFuncCall |>> FunctionCallStmt
 
-let pPosInt = (pmany1 pdigit |>> charListToString |>> int)
+let tryParseInt (s : string) =
+    match System.Int32.TryParse(s) with
+    | (true, v) -> Some v
+    | (false, _) -> None
+
+let pPosInt = pmapoption (pmany1 pdigit |>> charListToString |>> tryParseInt)
 
 let pNumLiteral =
     pseq (poption (pchar '-'))
