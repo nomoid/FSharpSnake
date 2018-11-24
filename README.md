@@ -42,6 +42,7 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Boolean (&, |)
     - Comparison (==, !=, <=, >=, <, >)
     - Unary (-, +, !)
+    - Operator assignment (+=, -=, *=, /=, %=, &=, |=)
 - Parenthases
 - Literals
     - String (e.g. "Hello, world!")
@@ -55,7 +56,6 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 
 ## Upcoming Features
 - Instantiation
-- Operator assignment
 - Card game engine
 
 ## Potential features

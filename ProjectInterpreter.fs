@@ -239,15 +239,26 @@ and evalStmt stmt scope =
         let argVals, newScope = evalArgs args scope
         let _, newScope2 = functionCallLocal name argVals newScope
         None, newScope2
-    | AssignmentStmt(oexpr, name, expr) ->
-        match oexpr with
-        | None ->
+    | AssignmentStmt(oexpr, name, oop, expr) ->
+        match oexpr, oop with
+        | None, None ->
             let v, newScope = evalExpr expr scope
             None, updateName name v newScope
-        | Some e ->
+        | Some e, None ->
             let v1, newScope = evalExpr e scope
             let v2, newScope2 = evalExpr expr newScope
             None, setProperty v1 name v2 newScope2
+        | None, Some op ->
+            let ((v1, _), newScope) = resolveName name scope
+            let v2, newScope2 = evalExpr expr newScope
+            let v3, newScope3 = ((bbinary op) v1 v2), newScope2
+            None, updateName name v3 newScope3
+        | Some e, Some op ->
+            let v1, newScope = evalExpr e scope
+            let ((v2, _), newScope2) = accessProperty v1 name newScope
+            let v3, newScope3 = evalExpr expr newScope2
+            let v4, newScope4 = ((bbinary op) v2 v3), newScope3
+            None, setProperty v1 name v4 newScope4
     | LetStmt(name, expr) ->
         let v, newScope = evalExpr expr scope
         None, addToMapping name v newScope

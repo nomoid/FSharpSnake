@@ -29,6 +29,9 @@ type BinaryOp =
 let binaryOps = [
     Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt; Dot
 ]
+let assignmentOps = [
+    Add; Sub; Mult; Div; Mod; And; Or
+]
 let precedences = [
     [Dot];
     [Mult; Div; Mod]; 
@@ -73,7 +76,7 @@ type Expr =
 
 type Stmt =
     | FunctionCallStmt of string * Expr list
-    | AssignmentStmt of Expr option * string * Expr
+    | AssignmentStmt of Expr option * string * BinaryOp option * Expr
     | LetStmt of string * Expr
     | ReturnStmt of Expr
     | IfElseStmt of
@@ -132,15 +135,19 @@ and prettyprintinfix op e1 e2 =
     sprintf "%s %s %s"
             (prettyprintexpr e1) op (prettyprintexpr e2)
 
-let prettyprintassignment oexpr name expr =
+let prettyprintassignment oexpr name oop expr =
     let prefix =
         match oexpr with
         | None -> ""
         | Some expr -> sprintf "%s." (prettyprintexpr expr)
-    name + " = " + (prettyprintexpr expr)
+    let opPart =
+        match oop with
+        | None -> ""
+        | Some op -> optostr op
+    sprintf "%s%s %s= %s" prefix name opPart (prettyprintexpr expr)
 
 let prettyprintlet name expr =
-    "let " + (prettyprintassignment None name expr)
+    "let " + (prettyprintassignment None name None expr)
 
 let indentationSize = 4
 // Four space indentation only for now
@@ -156,7 +163,7 @@ let rec prettyprintgroup header innerPrinter block =
 let rec prettyprintstmt stmt =
     match stmt with
     | FunctionCallStmt(name, exprs) -> [prettyprintcall name exprs]
-    | AssignmentStmt(oexpr, name, expr) -> [prettyprintassignment oexpr name expr]
+    | AssignmentStmt(oexpr, name, op, expr) -> [prettyprintassignment oexpr name op expr]
     | LetStmt(name, expr) -> [prettyprintlet name expr]
     | ReturnStmt(expr) -> ["return " + prettyprintexpr expr]
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
@@ -191,7 +198,7 @@ let rec prettyprintdef def =
             prettyprintstmt body
     | ScopeDefn(name, body) ->
         prettyprintgroup name prettyprintdef body
-    | AssignmentDefn(name, expr) -> [prettyprintassignment None name expr]
+    | AssignmentDefn(name, expr) -> [prettyprintassignment None name None expr]
 
 let prettyprint =
     prettyprintlist prettyprintdef
@@ -321,8 +328,8 @@ let pbinop op =
     let exprgen = makebin op
     pfresult (pstr str) (op, exprgen)
 
-let pinfixop =
-    List.fold (fun parser op -> (parser <|> (pbinop op))) pzero binaryOps
+let pinfixop opList =
+    List.fold (fun parser op -> (parser <|> (pbinop op))) pzero opList
 
 let rec combineSinglePrecOp right cexpr xs predicate =
     match xs with
@@ -369,7 +376,7 @@ pExprImpl :=
     pmapoption
         (pseq pConsumingExpr
             (pmany0
-                (pseq pinfixop
+                (pseq (pinfixop binaryOps)
                     pConsumingExpr
                     id
                 )
@@ -387,11 +394,14 @@ let pAssignmentExpr input =
             Success ((None, name), rem)
         | _ -> Failure
 
+let pOpEq =
+    pleft (poption (pinfixop assignmentOps)) (pchar '=') |>> Option.map fst
+
 let pComplexAssignment =
-    pseq (pleft pAssignmentExpr (pchar '=')) pExpr id
+    pseq (pseq pAssignmentExpr pOpEq id) pExpr id
 let pSimpleAssignment =
     pseq (pleft pidentifier (pchar '=')) pExpr id
-let pAssignmentStmt = pComplexAssignment |>> (fun ((a, b), c) -> a, b, c) |>> AssignmentStmt
+let pAssignmentStmt = pComplexAssignment |>> (fun (((a, b), c), d) -> a, b, c, d) |>> AssignmentStmt
 let pAssignmentGlobal = pSimpleAssignment |>> AssignmentDefn
 
 

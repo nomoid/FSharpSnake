@@ -71,7 +71,7 @@ isprime(n):
     while i <= sqrt(n):
         if n % i == 0:
             return false
-        i = i + 1
+        i += 1
     return true
 
 primetest():

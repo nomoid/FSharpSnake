@@ -11,7 +11,7 @@ main():
     this.x = 2
     y = 3
     print(bar().x)
-    bar().x = 1
+    bar().x += 1
     print(outer.x)
     print(outer.foo(outer.x))
     outer = this
