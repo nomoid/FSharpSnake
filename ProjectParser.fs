@@ -73,7 +73,7 @@ type Expr =
 
 type Stmt =
     | FunctionCallStmt of string * Expr list
-    | AssignmentStmt of string * Expr
+    | AssignmentStmt of Expr option * string * Expr
     | LetStmt of string * Expr
     | ReturnStmt of Expr
     | IfElseStmt of
@@ -132,11 +132,15 @@ and prettyprintinfix op e1 e2 =
     sprintf "%s %s %s"
             (prettyprintexpr e1) op (prettyprintexpr e2)
 
-let prettyprintassignment name expr =
+let prettyprintassignment oexpr name expr =
+    let prefix =
+        match oexpr with
+        | None -> ""
+        | Some expr -> sprintf "%s." (prettyprintexpr expr)
     name + " = " + (prettyprintexpr expr)
 
 let prettyprintlet name expr =
-    "let " + (prettyprintassignment name expr)
+    "let " + (prettyprintassignment None name expr)
 
 let indentationSize = 4
 // Four space indentation only for now
@@ -152,7 +156,7 @@ let rec prettyprintgroup header innerPrinter block =
 let rec prettyprintstmt stmt =
     match stmt with
     | FunctionCallStmt(name, exprs) -> [prettyprintcall name exprs]
-    | AssignmentStmt(name, expr) -> [prettyprintassignment name expr]
+    | AssignmentStmt(oexpr, name, expr) -> [prettyprintassignment oexpr name expr]
     | LetStmt(name, expr) -> [prettyprintlet name expr]
     | ReturnStmt(expr) -> ["return " + prettyprintexpr expr]
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
@@ -187,7 +191,7 @@ let rec prettyprintdef def =
             prettyprintstmt body
     | ScopeDefn(name, body) ->
         prettyprintgroup name prettyprintdef body
-    | AssignmentDefn(name, expr) -> [prettyprintassignment name expr]
+    | AssignmentDefn(name, expr) -> [prettyprintassignment None name expr]
 
 let prettyprint =
     prettyprintlist prettyprintdef
@@ -372,25 +376,30 @@ pExprImpl :=
             )
             (combineOpsLeft precedences))
    
+let pAssignmentExpr input =
+    match pExpr input with
+    | Failure -> Failure
+    | Success (expr, rem) ->
+        match expr with
+        | PropertyAccessor (inner, name) ->
+            Success ((Some inner, name), rem)
+        | Identifier (name) ->
+            Success ((None, name), rem)
+        | _ -> Failure
 
-let pAssignment =
-    pseq (pleft pidentifier (pchar '=')) pExpr
-        (fun (name, expr) -> (name, expr))
-let pAssignmentStmt = pAssignment |>> AssignmentStmt
-let pAssignmentGlobal = pAssignment |>> AssignmentDefn
+let pComplexAssignment =
+    pseq (pleft pAssignmentExpr (pchar '=')) pExpr id
+let pSimpleAssignment =
+    pseq (pleft pidentifier (pchar '=')) pExpr id
+let pAssignmentStmt = pComplexAssignment |>> (fun ((a, b), c) -> a, b, c) |>> AssignmentStmt
+let pAssignmentGlobal = pSimpleAssignment |>> AssignmentDefn
 
 
 let pIdAssign =
-    (pseq (pleft pidentifier pidsep) pAssignment)
-        (fun (a, b) ->
-            (a, b)
-        )
+    pseq (pleft pidentifier pidsep) pSimpleAssignment id
 
 let pIdExpr =
-    (pseq (pleft pidentifier pidsep) pExpr)
-        (fun (a, b) ->
-            (a, b)
-        )
+    pseq (pleft pidentifier pidsep) pExpr id
 
 let pWordStmt pidx str outputProcessor input =
     let outcome = pidx input
@@ -407,10 +416,10 @@ let pWordAssignStmt = pWordStmt pIdAssign "let" LetStmt
 let pWordExprStmt = pWordStmt pIdExpr "return" ReturnStmt
 
 let pStmt =
-    pWordExprStmt
+    pAssignmentStmt
+    <|> pWordExprStmt
     <|> pWordAssignStmt
     <|> pFuncCallStmt
-    <|> pAssignmentStmt
 
 let mutable maxLine = 0
 

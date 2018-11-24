@@ -49,11 +49,13 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Boolean (true/false)
     - Reference (this)
 - References
-    - Property accessor (e.g. player.name)
+    - Property accessor (e.g. print(player.name))
     - Property function call  (e.g. player.turn())
+    - Property assignment (e.g. player.name = "Markus")
 
 ## Upcoming Features
-- Support for property assignment (a.b = )
+- Instantiation
+- Operator assignment
 - Card game engine
 
 ## Potential features

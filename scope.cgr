@@ -1,12 +1,17 @@
 outer = this
-x = 1
+x = 0
 
 foo(x):
     return 2 * x
 
+bar():
+    return outer
+
 main():
-    let x = 2
+    this.x = 2
     y = 3
+    print(bar().x)
+    bar().x = 1
     print(outer.x)
     print(outer.foo(outer.x))
     outer = this

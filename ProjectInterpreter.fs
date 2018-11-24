@@ -239,9 +239,15 @@ and evalStmt stmt scope =
         let argVals, newScope = evalArgs args scope
         let _, newScope2 = functionCallLocal name argVals newScope
         None, newScope2
-    | AssignmentStmt(name, expr) ->
-        let v, newScope = evalExpr expr scope
-        None, updateName name v newScope
+    | AssignmentStmt(oexpr, name, expr) ->
+        match oexpr with
+        | None ->
+            let v, newScope = evalExpr expr scope
+            None, updateName name v newScope
+        | Some e ->
+            let v1, newScope = evalExpr e scope
+            let v2, newScope2 = evalExpr expr newScope
+            None, setProperty v1 name v2 newScope2
     | LetStmt(name, expr) ->
         let v, newScope = evalExpr expr scope
         None, addToMapping name v newScope
@@ -309,7 +315,15 @@ and accessProperty v name scope =
     | _ -> 
         raise (InterpreterException 
             "Tried accessing a property of an object without properties")
-
+and setProperty v1 name v2 scope =
+    let nrs, refs = scope
+    match v1 with
+    | ValReference xs ->
+        let _, newRefs = addToMapping name v2 (xs, refs)
+        nrs, newRefs
+    | _ ->
+        raise (InterpreterException
+            "Tried setting a property of an object without properties")
 and evalExpr expr scope : (Value * Scope) =
     match expr with
     | FunctionCallExpr (name, args) ->
