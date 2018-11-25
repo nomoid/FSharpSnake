@@ -1,0 +1,10 @@
+fib(i):
+    if i <= 0:
+        return 0
+    elif i == 1:
+        return 1
+    return fib(i - 1) + fib(i - 2)
+
+main():
+    print(fib(7))
+    return 0

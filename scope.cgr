@@ -1,12 +1,12 @@
 #outer = this
 #x = 0
-#a
+#
 #foo(x):
 #    return 2 * x
-#a
+#
 #bar():
 #    return outer
-#a
+#
 main():
     #this.x = 2
     #y = 3

@@ -26,6 +26,7 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Entry point (main() function)
 - Function calls
     - Functions with arguments
+    - Recursion
 - Scope blocks
     - Indentation
 - Variables
@@ -65,6 +66,5 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 - Multi-line statements/expressions
 - Floating point numbers
 - Lambda expressions
-- Recursion
 - Multi-file support
 - External language support

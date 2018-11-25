@@ -6,7 +6,7 @@ open ProjectParser
 type ScopeLayer =
     | ScopeGlobal
     | TempBlock
-    | FuncLocal of string
+    | FuncLocal of string * int
     | ScopeLocal of string
     | ScopeInstance of string * int
 type NoRefScope = ScopeLayer list

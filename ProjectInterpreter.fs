@@ -10,6 +10,9 @@ let anonArgs = "$anon$"
 let scopeLocalCountName name =
     sprintf "$scopelocalcount_%s$" name
 
+let funcLocalCountName name =
+    sprintf "$funclocalcount_%s$" name
+
 let constructorName = "new"
 
 let mainFunc = "main"
@@ -71,9 +74,6 @@ let pushScope name rules defaultMapping (scope : Scope) : Scope =
 let pushTempScope (scope : Scope) : Scope =
     pushScope TempBlock List.empty Map.empty scope
 
-let pushFunctionLocalScope scopeName args (scope : Scope) : Scope =
-    pushScope (FuncLocal scopeName) List.empty args scope
-
 let addToMapping name value (scope : Scope) : Scope =
     let nrs, refs = scope
     let opts, mapping = findRef scope
@@ -82,6 +82,25 @@ let addToMapping name value (scope : Scope) : Scope =
 let getFromMapping name (scope : Scope) : Value option =
     let _, mapping = findRef scope
     Map.tryFind name mapping
+
+let getLocalCount name scope =
+    match getFromMapping name scope with
+    | None -> 0
+    | Some v ->
+        match v with
+        | ValInt i -> i
+        | _ ->
+            raise (InterpreterException
+            "Incorrect type for scope local count")
+
+let setLocalCount name count scope =
+    addToMapping name (ValInt count) scope
+
+let pushFunctionLocalScope scopeName args (scope : Scope) : Scope =
+    let count = getLocalCount (funcLocalCountName scopeName) scope
+    let newScope = setLocalCount (funcLocalCountName scopeName) (count + 1) scope
+    pushScope (FuncLocal (scopeName, count)) List.empty args newScope
+
 
 //Name resolution & updating
 
@@ -369,19 +388,6 @@ and evalInfix processor e1 e2 scope =
 //            | ONSSubspace list -> NSSubspace (convertToNamespace list)
 //        Map.add name ns map
 
-let getScopeLocalCount name scope =
-    match getFromMapping (scopeLocalCountName name) scope with
-    | None -> 0
-    | Some v ->
-        match v with
-        | ValInt i -> i
-        | _ ->
-            raise (InterpreterException
-            "Incorrect type for scope local count")
-
-let setScopeLocalCount name count scope =
-    addToMapping (scopeLocalCountName name) (ValInt count) scope
-
 let staticScope scope =
     let nrs, refs = scope
     let rec staticScopeInner nrs =
@@ -400,9 +406,10 @@ let newInstance name args scope : Value * Scope =
     noarg "new" args
     //Pop until out of \"new\" scope
     let ((v, innerScope), newScope) = resolveName name scope
+    //Make the scope static so a copy can be obtained
     let scopeToCopy = ScopeLocal name :: fst (staticScope innerScope)
-    let count = getScopeLocalCount name innerScope
-    let newInnerScope = setScopeLocalCount name (count + 1) innerScope
+    let count = getLocalCount (scopeLocalCountName name) innerScope
+    let newInnerScope = setLocalCount (scopeLocalCountName name) (count + 1) innerScope
     let instanceName = ScopeInstance (name, count)
     let instanceScope = instanceName :: fst newInnerScope
     let newRefs =

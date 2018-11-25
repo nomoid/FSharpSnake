@@ -578,7 +578,7 @@ let cleanUpperLine line strings =
     //Replace illegal chars
     let clean0 = Regex.Replace(newLine, @"[\{\}]", "")
     //Replace comments
-    let clean1 = Regex.Replace(clean0, @"\#.+", "")
+    let clean1 = Regex.Replace(clean0, @"\#.*", "")
     if Regex.Replace(clean1, @"\s", "") = "" then
         "", newStrings
     else
