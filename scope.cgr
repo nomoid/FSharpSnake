@@ -17,4 +17,30 @@ main():
     outer = this
     print(outer.y)
     print(outer.x + this.x)
+    let p1 = 0
+    let p2 = 0
+    if true:
+        p1 = player()
+        p2 = player()
+    p1.a = 5
+    p2.a = 6
+    print(p1.a)
+    print(p2.a)
+    p1.a -= p2.a
+    p1.b = p1.a * -7
+    print(p1.b)
+    print(p1.abc())
     return 0
+
+glob = 1
+
+player:
+    a = 1
+    abc():
+        return inner().c()
+
+    inner:
+        b = 2
+        c():
+            glob += b
+            return glob

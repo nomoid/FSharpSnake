@@ -91,16 +91,6 @@ type Defn =
     | ScopeDefn of string * Defn list
     | AssignmentDefn of string * Expr
 
-type Value =
-    | ValNone
-    | ValBool of bool
-    | ValInt of int
-    | ValString of string
-    | ValFunc of string list * Stmt list
-    | ValList of Value list
-    | ValReference of string list
-    | ValBuiltinFunc of (Value list -> Value)
-
 let prettyprintfunc stringify exprs =
     "(" + (List.fold (fun a b ->
             (if a <> "" then a + ", " else "") + stringify b

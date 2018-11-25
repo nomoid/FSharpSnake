@@ -1,8 +1,15 @@
 module Builtins
 
 open ProjectParser
+open InterpreterTypes
 
 exception BuiltinException of string
+
+let noarg name args =
+    match args with
+    | [] -> ()
+    | _ -> raise (BuiltinException
+            (sprintf "%s: can only be called with no arguments" name))
 
 let singlearg name args =
     match args with
@@ -107,9 +114,12 @@ let opto op =
 let bbinary bop =
     opto bop
 
+let contextfree bfun =
+    (fun vs scope -> bfun vs, scope)
+
 let builtins : Map<string, Value> =
     [
-        ("print", ValBuiltinFunc bprint)
-        ("sqrt", ValBuiltinFunc bsqrt)
+        ("print", ValBuiltinFunc (contextfree bprint))
+        ("sqrt", ValBuiltinFunc (contextfree bsqrt))
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

@@ -1,5 +1,6 @@
 ﻿open System.IO
 
+open InterpreterTypes
 open ProjectParser
 open ProjectInterpreter
 

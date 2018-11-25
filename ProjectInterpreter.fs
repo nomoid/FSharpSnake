@@ -1,6 +1,7 @@
 module ProjectInterpreter
 
 open ProjectParser
+open InterpreterTypes
 open Builtins
 
 //Consts
@@ -15,18 +16,18 @@ let blockName name =
 let scopeLocalName name =
     sprintf "$scopelocal_%s$" name
 
+let scopeLocalCountName name =
+    sprintf "$scopelocalcount_%s$" name
+
+let scopeInstanceName name count =
+    sprintf "$scopeinstance_%s_%i$" name count
+
 let functionLocalName name =
     sprintf "$funclocal_%s$" name
 
-let mainFunc = "main"
+let constructorName = "new"
 
-type ScopeRules =
-    | PersistentScope
-type FuncType = string list * Stmt list
-type RefType = ScopeRules list * Map<string, Value>
-type NoRefScope = string list
-type Refs = Map<NoRefScope, RefType>
-type Scope = NoRefScope * Refs
+let mainFunc = "main"
 
 type EvalExpr =
     | Unevaled of Expr
@@ -62,7 +63,9 @@ let rec makeNamespace defns =
 let findRef (scope : Scope) : RefType =
     let nrs, refs = scope
     match Map.tryFind nrs refs with
-    | None -> raise (InterpreterException "Scope not found in refs")
+    | None ->
+        raise (InterpreterException
+            (sprintf "Scope \"%A\" not found in refs" (fst scope)))
     | Some (opts, mapping) -> opts, mapping
 
 //Scope helper methods
@@ -297,7 +300,7 @@ and functionCall name (scopeInner : Scope) func args scope =
             v, (nrsOuter, refsNew)
     | ValBuiltinFunc (f) ->
         //printfn "Pop f: %A" (fst scope)
-        f args, scope
+        f args scope
     | _ -> raise (InterpreterException "Tried to call non-function object")
 and functionCallLocal name args scope =
     let (func, scopeInner), scopeOuter = resolveName name scope
@@ -382,6 +385,40 @@ and evalInfix processor e1 e2 scope =
 //            | ONSSubspace list -> NSSubspace (convertToNamespace list)
 //        Map.add name ns map
 
+let getScopeLocalCount name scope =
+    match getFromMapping (scopeLocalCountName name) scope with
+    | None -> 0
+    | Some v ->
+        match v with
+        | ValInt i -> i
+        | _ ->
+            raise (InterpreterException
+            "Incorrect type for scope local count")
+
+let setScopeLocalCount name count scope =
+    addToMapping (scopeLocalCountName name) (ValInt count) scope
+
+let newInstance name args scope : Value * Scope =
+    noarg "new" args
+    //Pop until out of \"new\" scope
+    let ((v, innerScope), newScope) = resolveName name scope
+    let scopeToCopy = scopeLocalName name :: fst innerScope
+    let count = getScopeLocalCount name innerScope
+    let newInnerScope = setScopeLocalCount name (count + 1) innerScope
+    let instanceName = scopeInstanceName name count
+    let instanceScope = instanceName :: fst newInnerScope
+    let newRefs =
+        Map.add
+            instanceScope
+            (findRef (scopeToCopy, snd newInnerScope))
+            (snd newInnerScope)
+    //printfn "%A" (fst newScope, newRefs)
+    //printfn ""
+    let newScope2 = fst newScope, newRefs
+    ValReference instanceScope, newScope2
+
+let defaultConstructor name =
+    ValBuiltinFunc(newInstance name)
 
 let rec evalGlobals (ns : (string * OrderedNamespace) list) =
     //let firstPass = convertToNamespace ns
@@ -407,10 +444,31 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
                     // Push and pop a new scope
                     let newVal, sc =
                         evalGlobalInner list
-                            (pushScope (scopeLocalName name) (PersistentScope :: List.empty) Map.empty scope)
+                            (pushScope
+                                (scopeLocalName name)
+                                (PersistentScope :: List.empty)
+                                Map.empty scope
+                            )
                     NSSubspace (newVal), popScope sc
-            let map, newNewScope = evalGlobalInner remaining newScope
-            Map.add name ns map, newNewScope
+            let map, newScope2 = evalGlobalInner remaining newScope
+            let newScope3 =
+                match ons with
+                | ONSSubspace _ ->
+                    let tempScope = addToMapping name (defaultConstructor name) newScope2
+                    // Implementation of .new syntax
+                    //let outerContext = fst newScope2
+                    //let tempScope = addToMapping name (ValReference outerContext) newScope2
+                    //let defConsMap = Map.add constructorName (defaultConstructor name) Map.empty
+                    //let tempScope2 =
+                    //    pushScope
+                    //        name
+                    //        (PersistentScope :: List.empty)
+                    //        defConsMap
+                    //        tempScope
+                    //popScope tempScope2
+                    tempScope
+                | _-> newScope2
+            Map.add name ns map, newScope3
     evalGlobalInner ns ([globalScopeName],
         Map.add
             [globalScopeName]
@@ -421,6 +479,10 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
 let runMain defns =
     let ons = makeNamespace defns
     let ns, scope = evalGlobals ons
+    //printfn "%A" ns
+    //printfn ""
+    //printfn "%A" scope
+    //printfn ""
     match Map.tryFind mainFunc ns with
     | Some v ->
         let res, _ = functionCallLocal mainFunc [] scope

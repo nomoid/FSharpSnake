@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Parsers.fs" />
     <Compile Include="ProjectParser.fs" />
+    <Compile Include="InterpreterTypes.fs" />
     <Compile Include="Builtins.fs" />
     <Compile Include="ProjectInterpreter.fs" />
     <Compile Include="Program.fs" />
