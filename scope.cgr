@@ -1,22 +1,22 @@
-outer = this
-x = 0
-
-foo(x):
-    return 2 * x
-
-bar():
-    return outer
-
+#outer = this
+#x = 0
+#a
+#foo(x):
+#    return 2 * x
+#a
+#bar():
+#    return outer
+#a
 main():
-    this.x = 2
-    y = 3
-    print(bar().x)
-    bar().x += 1
-    print(outer.x)
-    print(outer.foo(outer.x))
-    outer = this
-    print(outer.y)
-    print(outer.x + this.x)
+    #this.x = 2
+    #y = 3
+    #print(bar().x)
+    #bar().x += 1
+    #print(outer.x)
+    #print(outer.foo(outer.x))
+    #outer = this
+    #print(outer.y)
+    #print(outer.x + this.x)
     let p1 = 0
     let p2 = 0
     if true:
@@ -30,6 +30,7 @@ main():
     p1.b = p1.a * -7
     print(p1.b)
     print(p1.abc())
+    print(p1.abc())
     return 0
 
 glob = 1
@@ -37,10 +38,12 @@ glob = 1
 player:
     a = 1
     abc():
-        return inner().c()
+        if true:
+            return this.inner().c()
 
     inner:
         b = 2
         c():
             glob += b
+            b += glob
             return glob

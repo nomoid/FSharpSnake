@@ -53,12 +53,13 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Property accessor (e.g. print(player.name))
     - Property function call  (e.g. player.turn())
     - Property assignment (e.g. player.name = "Markus")
+    - Creating new instances (e.g. player())
 
 ## Upcoming Features
-- Instantiation
 - Card game engine
 
 ## Potential features
+- Lists/Dictionaries
 - Escape characters in strings
 - String concatenation
 - Multi-line statements/expressions

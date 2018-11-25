@@ -2,6 +2,18 @@ module InterpreterTypes
 
 open ProjectParser
 
+
+type ScopeLayer =
+    | ScopeGlobal
+    | TempBlock
+    | FuncLocal of string
+    | ScopeLocal of string
+    | ScopeInstance of string * int
+type NoRefScope = ScopeLayer list
+type ScopeRules =
+    | PersistentScope
+type FuncType = string list * Stmt list
+
 type Value =
     | ValNone
     | ValBool of bool
@@ -9,12 +21,8 @@ type Value =
     | ValString of string
     | ValFunc of string list * Stmt list
     | ValList of Value list
-    | ValReference of string list
+    | ValReference of ScopeLayer list
     | ValBuiltinFunc of (Value list -> Scope -> Value * Scope)
-and ScopeRules =
-    | PersistentScope
-and FuncType = string list * Stmt list
 and RefType = ScopeRules list * Map<string, Value>
-and NoRefScope = string list
 and Refs = Map<NoRefScope, RefType>
 and Scope = NoRefScope * Refs

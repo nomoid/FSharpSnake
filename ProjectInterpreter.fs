@@ -6,24 +6,9 @@ open Builtins
 
 //Consts
 let anonArgs = "$anon$"
-let tempBlock = "$tempblock$"
-let globalScopeName = "$scopeglobal$"
-
-let blockPrefix = "" //TODO set block prefix
-let blockName name =
-    sprintf "$block_%s$" name
-
-let scopeLocalName name =
-    sprintf "$scopelocal_%s$" name
 
 let scopeLocalCountName name =
     sprintf "$scopelocalcount_%s$" name
-
-let scopeInstanceName name count =
-    sprintf "$scopeinstance_%s_%i$" name count
-
-let functionLocalName name =
-    sprintf "$funclocal_%s$" name
 
 let constructorName = "new"
 
@@ -84,10 +69,10 @@ let pushScope name rules defaultMapping (scope : Scope) : Scope =
     newLocation, Map.add newLocation (rules, defaultMapping) refs
 
 let pushTempScope (scope : Scope) : Scope =
-    pushScope tempBlock List.empty Map.empty scope
+    pushScope TempBlock List.empty Map.empty scope
 
 let pushFunctionLocalScope scopeName args (scope : Scope) : Scope =
-    pushScope (functionLocalName scopeName) List.empty args scope
+    pushScope (FuncLocal scopeName) List.empty args scope
 
 let addToMapping name value (scope : Scope) : Scope =
     let nrs, refs = scope
@@ -182,10 +167,9 @@ let rec thisReference (scope : Scope) =
     match nrs with
     | [] -> raise (InterpreterException "Invalid context for \"this\"")
     | name :: remaining ->
-        if name.StartsWith(blockPrefix) then
-            nrs
-        else
-            thisReference (remaining, refs)
+        match name with
+        | ScopeInstance _ -> nrs
+        | _ -> thisReference (remaining, refs)
 
 //Program execution
 let rec executeBlock block scope =
@@ -398,14 +382,28 @@ let getScopeLocalCount name scope =
 let setScopeLocalCount name count scope =
     addToMapping (scopeLocalCountName name) (ValInt count) scope
 
+let staticScope scope =
+    let nrs, refs = scope
+    let rec staticScopeInner nrs =
+        match nrs with
+        | [] -> []
+        | layer :: remaining ->
+            let newLayer =
+                match layer with
+                | ScopeInstance (name, _) -> ScopeLocal name
+                | _ -> layer
+            let inner = staticScopeInner remaining
+            newLayer :: inner
+    staticScopeInner nrs, refs
+
 let newInstance name args scope : Value * Scope =
     noarg "new" args
     //Pop until out of \"new\" scope
     let ((v, innerScope), newScope) = resolveName name scope
-    let scopeToCopy = scopeLocalName name :: fst innerScope
+    let scopeToCopy = ScopeLocal name :: fst (staticScope innerScope)
     let count = getScopeLocalCount name innerScope
     let newInnerScope = setScopeLocalCount name (count + 1) innerScope
-    let instanceName = scopeInstanceName name count
+    let instanceName = ScopeInstance (name, count)
     let instanceScope = instanceName :: fst newInnerScope
     let newRefs =
         Map.add
@@ -445,7 +443,7 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
                     let newVal, sc =
                         evalGlobalInner list
                             (pushScope
-                                (scopeLocalName name)
+                                (ScopeLocal name)
                                 (PersistentScope :: List.empty)
                                 Map.empty scope
                             )
@@ -469,9 +467,9 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
                     tempScope
                 | _-> newScope2
             Map.add name ns map, newScope3
-    evalGlobalInner ns ([globalScopeName],
+    evalGlobalInner ns ([ScopeGlobal],
         Map.add
-            [globalScopeName]
+            [ScopeGlobal]
             ((PersistentScope :: List.empty), Map.empty)
             Map.empty)
 
