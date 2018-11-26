@@ -139,9 +139,9 @@ let prettyprintassignment oexpr name oop expr =
 let prettyprintlet name expr =
     "let " + (prettyprintassignment None name None expr)
 
-let indentationSize = 4
+let defaultIndentationSize = 4
 // Four space indentation only for now
-let indentation = String.replicate indentationSize " "
+let indentation = String.replicate defaultIndentationSize " "
 
 let indent xs =
     List.map (fun s -> indentation + s) xs
@@ -514,13 +514,31 @@ let rec prettyprintblock block =
     | SubBlock(_, title, sub) ->
         title + ":" :: (indent (sub |> List.collect prettyprintblock))
 
-let rec findIndented (lineList : (int * string) list) =
+let initialSpacing str =
+    let rec initialSpacingInner clist =
+        match clist with
+        | [] -> 0
+        | ' ' :: xs -> 1 + initialSpacingInner xs
+        | _ -> 0
+    initialSpacingInner (Seq.toList str)
+
+let spacesOf count =
+    String.replicate count " "
+
+let rec findIndented (lineList : (int * string) list) indentationAmount =
     match lineList with
     | [] -> [], []
     | (num, line) :: remaining ->
-        if line.Length >= indentationSize && line.Substring(0, indentationSize) = indentation then
-            let unindented = line.Substring(indentationSize)
-            let remainingIndented, rest = findIndented remaining
+        let actualAmount =
+            if indentationAmount = 0 then
+                initialSpacing line
+            else
+                indentationAmount
+        if actualAmount > 0 &&
+                line.Length >= actualAmount && 
+                line.Substring(0, actualAmount) = spacesOf actualAmount then
+            let unindented = line.Substring(actualAmount)
+            let remainingIndented, rest = findIndented remaining actualAmount
             (num, unindented) :: remainingIndented, rest
         else
             [], lineList
@@ -531,8 +549,9 @@ let rec parseUpperNum lineList =
         let cleanLine = Regex.Replace(line, @":\s+$", ":")
         if cleanLine.Chars(cleanLine.Length - 1) = ':' then
             let cleanLine2 = cleanLine.Substring(0, cleanLine.Length - 1)
-            let indented, rest = findIndented remaining
-            (SubBlock(num, cleanLine2, parseUpperNum indented)) :: (parseUpperNum rest)
+            let indented, rest = findIndented remaining 0
+            (SubBlock(num, cleanLine2, parseUpperNum indented)) 
+                :: (parseUpperNum rest)
         else
             Line (num, line) :: (parseUpperNum remaining)
 
