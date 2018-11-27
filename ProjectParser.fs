@@ -79,6 +79,7 @@ and LValue =
 
 type Stmt =
     | FunctionCallStmt of string * Expr list
+    | PropertyFunctionCallStmt of Expr * string * Expr list
     | AssignmentStmt of LValue * BinaryOp option * Expr
     | LetStmt of string * Expr
     | ReturnStmt of Expr
@@ -177,6 +178,10 @@ let rec prettyprintgroup header innerPrinter block =
 let rec prettyprintstmt stmt =
     match stmt with
     | FunctionCallStmt(name, exprs) -> [prettyprintcall name exprs]
+    | PropertyFunctionCallStmt(expr, name, exprs) ->
+        [sprintf "%s.%s"
+            (prettyprintexpr expr)
+            (prettyprintcall name exprs)]
     | AssignmentStmt(lv, op, expr) -> 
         [prettyprintassignment lv op expr]
     | LetStmt(name, expr) -> [prettyprintlet name expr]
@@ -280,6 +285,15 @@ let pFuncCall = pFuncHelper pExpr
 
 let pFuncCallExpr = pFuncCall |>> FunctionCallExpr
 let pFuncCallStmt = pFuncCall |>> FunctionCallStmt
+
+let pPropertyFuncCallStmt input =
+    match pExpr input with
+    | Failure -> Failure
+    | Success (resV, rem) ->
+        match resV with
+        | PropertyFunctionCall (a, b, c) ->
+            Success (PropertyFunctionCallStmt (a, b, c), rem)
+        | _ -> Failure
 
 let tryParseInt (s : string) =
     match System.Int32.TryParse(s) with
@@ -480,6 +494,7 @@ let pStmt =
     <|> pWordExprStmt
     <|> pWordAssignStmt
     <|> pFuncCallStmt
+    <|> pPropertyFuncCallStmt
 
 // Use mutable to keep track of max line reached
 // For program debugging purposes

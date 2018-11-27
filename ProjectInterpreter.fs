@@ -308,6 +308,11 @@ and evalStmt stmt scope =
         let argVals, newScope = evalArgs args scope
         let _, newScope2 = functionCallLocal name argVals newScope
         None, newScope2
+    | PropertyFunctionCallStmt(expr, name, args) ->
+        let v, newScope1 = evalExpr expr scope
+        let argVals, newScope2 = evalArgs args newScope1
+        let resV, newScope3 = functionCallProperty v name argVals newScope2
+        None, newScope3
     | AssignmentStmt(lv, oop, expr) ->
         let lvs, newScope0 = resolveLValue lv scope
         let vOuter, newScopeOuter = 
