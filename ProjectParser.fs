@@ -22,10 +22,7 @@ type BinaryOp =
     | Lt
     | Gt
     | Dot
-//TODO operators
-//Unary Not, Unary Neg
-//Dot
-//Dot assign
+
 let binaryOps = [
     Add; Sub; Mult; Div; Mod; And; Or; Eq; Neq; Leq; Geq; Lt; Gt; Dot
 ]
@@ -165,8 +162,8 @@ let prettyprintassignment lv oop expr =
 let prettyprintlet name expr =
     "let " + (prettyprintassignment (Identifier name) None expr)
 
+// Currently auto-detects indentation size
 let defaultIndentationSize = 4
-// Four space indentation only for now
 let indentation = String.replicate defaultIndentationSize " "
 
 let indent xs =
@@ -232,12 +229,7 @@ let pmapoption (parser: Parser<'a option>) input : Outcome<'a> =
     | Success (resv, rem) ->
         match resv with
         | None -> Failure
-        | Some s -> Success(s, rem)
-
-//parsers should not be empty
-//let pinfix (opparser: Parser<'a>) (leftparser: Parser<'b>)
-//    (rightparser: Parser<'c>) (combiner: 'b -> 'c -> 'd) : Parser<'d> =
-   
+        | Some s -> Success(s, rem)   
 
 let isSymb c = is_regexp (c.ToString()) @"[_$]"
 let isLetterSymb c = is_letter c || isSymb c
@@ -336,9 +328,10 @@ let pConsumingExpr =
     <|> pBoolLiteral
     <|> (pid |>> LValueExpr)
     <|> pNumLiteral
-//    <|> pStrLiteral
     <|> pParens
     <|> pListLiteral
+//    <|> pStrLiteral
+
 let makebin bop (a, b) =
     if bop = Dot then
         match b with
@@ -438,14 +431,6 @@ let pAssignmentExpr input =
         match expr with
         | LValueExpr lv ->
             Success (lv, rem)
-        (*| PropertyAccessor (inner, name) ->
-            Success ((Some inner, name, None), rem)
-        | Identifier (name) ->
-            Success ((None, name, None), rem)
-        | PropertyArrayAccessor (inner, name, arr) ->
-            Success ((Some inner, name, Some arr), rem)
-        | ArrayAccessor (name, arr) ->
-            Success ((None, name, arr), rem)*)
         | _ -> Failure
 
 let pOpEq =
@@ -457,7 +442,6 @@ let pSimpleAssignment =
     pseq (pleft pidentifier (pchar '=')) pExpr id
 let pAssignmentStmt = 
     pComplexAssignment 
-    //|>> (fun (((a, b), c), d) -> a, b, c, d) 
     |>> (fun ((a, b), c) -> a, b, c)
     |>> AssignmentStmt
 let pAssignmentGlobal = pSimpleAssignment |>> AssignmentDefn
@@ -489,6 +473,8 @@ let pStmt =
     <|> pWordAssignStmt
     <|> pFuncCallStmt
 
+// Use mutable to keep track of max line reached
+// For program debugging purposes
 let mutable maxLine = 0
 
 let pPosIntMut input =
@@ -647,13 +633,8 @@ let extractQuotes line (strings : string[]) =
         let text = firstMatch.Value
         let text2 = Regex.Replace(text, "\\\\\\\\", "\\\\")
         let text3 = Regex.Replace(text2, "\\\\\"", "\"")
-        //printfn "L:%s;fmv:%s;fmi:%i;fml:%i" line text
-        //    firstMatch.Index firstMatch.Length
         let outLine =
             quoteRegex.Replace(line, stringExtract strings.Length, 1)
-            //stringReplace line firstMatch.Index firstMatch.Length
-            //    (stringExtract strings.Length)
-        //printfn "a:%s,b:%A,c:%A" line outLine (stringExtract strings.Length)
         //Text contains quotes, so remove first and last char
         outLine, Array.append strings [|text3.[1 .. text3.Length - 2]|]
     else

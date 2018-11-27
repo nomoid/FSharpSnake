@@ -31,9 +31,6 @@ type LValueStore =
     | ArrayStore of string * int
     | IdentifierStore of string
 
-//let references : System.Collections.Generic.Dictionary<string, Namespace>
-//    = new System.Collections.Generic.Dictionary<string, Namespace>()
-
 let rec makeNamespace defns =
     match defns with
     | [] -> []
@@ -146,19 +143,104 @@ let rec setList l i v =
     | x :: xs, 0 -> v :: xs
     | x :: xs, n -> x :: (setList xs (n - 1) v)
 
+let rec accessPropertyFromRef ref name scope =
+    let _, refs = scope
+    let res = getFromMapping name (ref, refs)
+    match res with
+    | None -> 
+        raise (InterpreterException
+            (sprintf "Property \"%s\" not found" name))
+    | Some v -> (v, (ref, refs)), scope
+let accessProperty v name scope =
+    match v with
+    | ValReference xs ->
+        accessPropertyFromRef xs name scope
+    | _ -> 
+        raise (InterpreterException
+            "Tried accessing a property of an object without properties")
+let resolveProperty v name scope =
+    match v with
+    | ValReference xs ->
+        PropertyStore(xs, name)
+    | _ ->
+        raise (InterpreterException
+            "Object does not have properties")
+let accessArrayFromRef ref i scope =
+    let l = getListFromRef ref scope
+    if i < 0 || i >= l.Length then
+        raise (InterpreterException
+            (sprintf "List index %i out of bounds" i))
+    l.[i], scope
+let setArrayFromRef ref i v scope =
+    let l = getListFromRef ref scope
+    if i < 0 || i >= l.Length then
+        raise (InterpreterException
+            (sprintf "List index %i out of bounds" i))
+    setListToRef ref (setList l i v) scope
+let accessArraySingle v1 v2 scope =
+    match v1, v2 with
+    | ValListReference ref, ValInt i ->
+        accessArrayFromRef ref i scope
+    | ValReference _, ValString s ->
+        let ((v, _), newScope) = accessProperty v1 s scope
+        v, newScope
+    //TODO add string indexing
+    //| ValString s, ValInt i ->
+    //    let ca = s.ToCharArray()
+    //    if i < 0 || i > ca.Length then
+    //        raise (InterpreterException
+    //            (sprintf "String index %i out of bounds" i))
+    //    ValString (System.String [|ca.[i]|]), scope
+    | _ ->
+        raise (InterpreterException
+            "Invalid types for array access")
+let rec resolveArray v argVals scope =
+    match argVals with
+    | [] ->
+        raise (InterpreterException
+            "Tried array access without arguments")
+    | [x] ->
+        match v, x with
+        | ValListReference ref, ValInt i ->
+            ArrayStore(ref, i), scope
+        | ValReference ref, ValString s ->
+            PropertyStore(ref, s), scope
+        | _ ->
+            raise (InterpreterException
+                "Invalid types for array access")
+    | x :: remaining ->
+        let vOut, newScope = accessArraySingle v x scope
+        resolveArray vOut remaining newScope
+let getLValue lvs scope =
+    match lvs with
+    | ArrayStore(ref, i) ->
+        accessArrayFromRef ref i scope
+    | PropertyStore(nrs, name) ->
+        let ((v, _), newScope) = accessPropertyFromRef nrs name scope
+        v, newScope
+    | IdentifierStore name ->
+        let ((v, _), newScope) = resolveName name scope
+        v, newScope
+let setLValue lvs v scope =
+    let outerNrs, refs = scope
+    match lvs with
+    | ArrayStore(ref, i) ->
+        setArrayFromRef ref i v scope
+    | PropertyStore(nrs, name) ->
+        let _, newRefs = addToMapping name v (nrs, refs)
+        outerNrs, newRefs
+    | IdentifierStore name ->
+        updateName name v scope
+
 //Program execution
 let rec executeBlock block scope =
     //Make a new scope
     let newScope = pushTempScope scope
-    //printfn "Push: %A" (fst newScope)
     //Eval statements
     let v, newScope2 = evalStmts block newScope
     let popped = popScope newScope2
-    //printfn "Pop: %A" (fst newScope2)
-    //printfn ""
     //Pop the new scope
     v, popped
-
 and ifOnce cond block scope =
     let v, newScope = evalExpr cond scope
     match v with
@@ -196,10 +278,6 @@ and runWhile cond block scope =
         // Tail call while loop
         | None -> runWhile cond block newScope
 and evalStmt stmt scope =
-    //printfn "-----------------------------------------------------"
-    //printfn "%A" stmt
-    //printfn "------------------------"
-    //printfn "%A" scope
     match stmt with
     | FunctionCallStmt(name, args) ->
         let argVals, newScope = evalArgs args scope
@@ -215,43 +293,6 @@ and evalStmt stmt scope =
                 let v2, newScope2 = evalExpr expr newScope1
                 ((bbinary op) v1 v2), newScope2
         None, setLValue lvs vOuter newScopeOuter
-        (*match lv with
-        | Identifier name ->
-            None, updateName name vOuter newScopeOuter
-        | PropertyAccessor(_, name) ->
-            match oref with
-            | None -> 
-                raise (InterpreterException "Cannot access None property")
-            | Some vInner ->
-                None, setProperty vInner name vOuter newScopeOuter
-        | PropertyArrayAccessor(_, name, exprs) ->
-            match oref with
-            | None ->
-                raise (InterpreterException "Cannot access None property")
-            | Some vInner ->
-                setArrayProperty vInner name vOuter
-        | ArrayAccessor(expr, exprs) ->
-            sprintf "%s%s"
-                (prettyprintexpr expr)
-                (prettyprintarrayaccess exprs)
-        match oexpr, oop with
-        | None, None ->
-            None, updateName name v newScope
-        | Some e, None ->
-            let v1, newScope = evalExpr e scope
-            let v2, newScope2 = evalExpr expr newScope
-            None, setProperty v1 name v2 newScope2
-        | None, Some op ->
-            let ((v1, _), newScope) = resolveName name scope
-            let v2, newScope2 = evalExpr expr newScope
-            let v3, newScope3 = ((bbinary op) v1 v2), newScope2
-            None, updateName name v3 newScope3
-        | Some e, Some op ->
-            let v1, newScope = evalExpr e scope
-            let ((v2, _), newScope2) = accessProperty v1 name newScope
-            let v3, newScope3 = evalExpr expr newScope2
-            let v4, newScope4 = ((bbinary op) v2 v3), newScope3
-            None, setProperty v1 name v4 newScope4*)
     | LetStmt(name, expr) ->
         let v, newScope = evalExpr expr scope
         None, addToMapping name v newScope
@@ -263,17 +304,14 @@ and evalStmt stmt scope =
     | WhileStmt(cond, block) ->
         runWhile cond block scope
 and evalStmts stmts scope =
-    //printfn "%A" (fst nsScope)
     match stmts with
     | [] -> None, scope
-        //raise (InterpreterException "Function has no return value")
     | stmt :: remaining ->
         let evalStmtResult, newScope = evalStmt stmt scope
         match evalStmtResult with
         | Some v -> Some v, newScope
         | None -> evalStmts remaining newScope
 and functionCall name (scopeInner : Scope) func args scope =
-    //printfn "Push f: %A" (fst scope)
     let nrsOuter, _ = scope
     match func with
     | ValFunc (argNames, stmts) ->
@@ -285,11 +323,9 @@ and functionCall name (scopeInner : Scope) func args scope =
         | None -> raise (InterpreterException "Function has no return value")
         | Some v ->
             let _, refsNew = popScope newScope2
-            //printfn "Pop f: %A" (fst scope)
             //Pop function local scope
             v, (nrsOuter, refsNew)
     | ValBuiltinFunc (f) ->
-        //printfn "Pop f: %A" (fst scope)
         f args scope
     | _ -> raise (InterpreterException "Tried to call non-function object")
 and functionCallLocal name args scope =
@@ -305,116 +341,6 @@ and evalArgs args scope =
         let v, newScope = evalExpr arg scope
         let vals, finalScope = evalArgs remaining newScope
         v :: vals, finalScope
-and accessPropertyFromRef ref name scope =
-    let _, refs = scope
-    let res = getFromMapping name (ref, refs)
-    //let (a, _) = resolveName (xs, refs) name
-    match res with
-    | None -> 
-        raise (InterpreterException
-            (sprintf "Property \"%s\" not found" name))
-    | Some v -> (v, (ref, refs)), scope
-and accessProperty v name scope =
-    match v with
-    | ValReference xs ->
-        accessPropertyFromRef xs name scope
-    | _ -> 
-        raise (InterpreterException
-            "Tried accessing a property of an object without properties")
-and setProperty v1 name v2 scope =
-    let nrs, refs = scope
-    match v1 with
-    | ValReference xs ->
-        let _, newRefs = addToMapping name v2 (xs, refs)
-        nrs, newRefs
-    | _ ->
-        raise (InterpreterException
-            "Tried setting a property of an object without properties")
-and resolveProperty v name scope =
-    match v with
-    | ValReference xs ->
-        PropertyStore(xs, name)
-    | _ ->
-        raise (InterpreterException
-            "Object does not have properties")
-and accessArrayFromRef ref i scope =
-    let l = getListFromRef ref scope
-    if i < 0 || i >= l.Length then
-        raise (InterpreterException
-            (sprintf "List index %i out of bounds" i))
-    l.[i], scope
-and setArrayFromRef ref i v scope =
-    let l = getListFromRef ref scope
-    if i < 0 || i >= l.Length then
-        raise (InterpreterException
-            (sprintf "List index %i out of bounds" i))
-    setListToRef ref (setList l i v) scope
-and accessArraySingle v1 v2 scope =
-    match v1, v2 with
-    | ValListReference ref, ValInt i ->
-        accessArrayFromRef ref i scope
-    | ValReference _, ValString s ->
-        let ((v, _), newScope) = accessProperty v1 s scope
-        v, newScope
-    //| ValString s, ValInt i ->
-    //    let ca = s.ToCharArray()
-    //    if i < 0 || i > ca.Length then
-    //        raise (InterpreterException
-    //            (sprintf "String index %i out of bounds" i))
-    //    ValString (System.String [|ca.[i]|]), scope
-    | _ ->
-        raise (InterpreterException
-            "Invalid types for array access")
-//and accessArray v argVals scope =
-//    match argVals with
-//    | [] ->
-//        raise (InterpreterException
-//            "Tried array access without arguments")
-//    | [x] ->
-//        let newV, newScope = accessArraySingle v x scope
-//        (newV, v), newScope
-//    | x :: remaining ->
-//        let vOut, newScope = accessArraySingle v x scope
-//        accessArray vOut remaining newScope
-and resolveArray v argVals scope =
-    //let v, newScope1 = evalExpr expr scope
-    //let argVals, newScope2 = evalArgs args newScope1
-    match argVals with
-    | [] ->
-        raise (InterpreterException
-            "Tried array access without arguments")
-    | [x] ->
-        match v, x with
-        | ValListReference ref, ValInt i ->
-            ArrayStore(ref, i), scope
-        | ValReference ref, ValString s ->
-            PropertyStore(ref, s), scope
-        | _ ->
-            raise (InterpreterException
-                "Invalid types for array access")
-    | x :: remaining ->
-        let vOut, newScope = accessArraySingle v x scope
-        resolveArray vOut remaining newScope
-and getLValue lvs scope =
-    match lvs with
-    | ArrayStore(ref, i) ->
-        accessArrayFromRef ref i scope
-    | PropertyStore(nrs, name) ->
-        let ((v, _), newScope) = accessPropertyFromRef nrs name scope
-        v, newScope
-    | IdentifierStore name ->
-        let ((v, _), newScope) = resolveName name scope
-        v, newScope
-and setLValue lvs v scope =
-    let outerNrs, refs = scope
-    match lvs with
-    | ArrayStore(ref, i) ->
-        setArrayFromRef ref i v scope
-    | PropertyStore(nrs, name) ->
-        let _, newRefs = addToMapping name v (nrs, refs)
-        outerNrs, newRefs
-    | IdentifierStore name ->
-        updateName name v scope
 and resolveLValue lvalue scope : (LValueStore * Scope) =
     match lvalue with
     | Identifier name ->
@@ -467,19 +393,6 @@ and evalInfix processor e1 e2 scope =
     let vRight, newScope2 = evalExpr e2 newScope1
     processor vLeft vRight, newScope2
 
-//let rec convertToNamespace (ns : (string * OrderedNamespace) list) =
-//    match ns with
-//    | [] -> Map.empty
-//    | pair :: remaining ->
-//        let map = convertToNamespace remaining
-//        let name, ons = pair
-//        let ns =
-//            match ons with
-//            | ONSVar v -> NSVar v
-//            | ONSFunc(args, body) -> NSFunc(args, body)
-//            | ONSSubspace list -> NSSubspace (convertToNamespace list)
-//        Map.add name ns map
-
 let staticScope scope =
     let nrs, refs = scope
     let rec staticScopeInner nrs =
@@ -509,8 +422,6 @@ let newInstance name args scope : Value * Scope =
             instanceScope
             (findRef (scopeToCopy, snd newInnerScope))
             (snd newInnerScope)
-    //printfn "%A" (fst newScope, newRefs)
-    //printfn ""
     let newScope2 = fst newScope, newRefs
     ValReference instanceScope, newScope2
 
@@ -518,7 +429,6 @@ let defaultConstructor name =
     ValBuiltinFunc(newInstance name)
 
 let rec evalGlobals (ns : (string * OrderedNamespace) list) =
-    //let firstPass = convertToNamespace ns
     let rec evalGlobalInner ns scope =
         match ns with
         | [] -> Map.empty, scope
@@ -576,10 +486,6 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
 let runMain defns =
     let ons = makeNamespace defns
     let ns, scope = evalGlobals ons
-    //printfn "%A" ns
-    //printfn ""
-    //printfn "%A" scope
-    //printfn ""
     match Map.tryFind mainFunc ns with
     | Some v ->
         let res, _ = functionCallLocal mainFunc [] scope
