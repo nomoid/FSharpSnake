@@ -99,3 +99,9 @@ let setListToRef listRef list (scope : Scope) =
     let nrs, refs = scope
     let _, newRefs = addToMapping listRef (ValListInner list) (globalScope, refs)
     nrs, newRefs
+
+let makeNewList argVals newScope =
+    let c = getListCount newScope
+    let newScope2 = setListCount (c + 1) newScope
+    let ref = globalListName c
+    ValListReference ref, setListToRef ref argVals newScope2

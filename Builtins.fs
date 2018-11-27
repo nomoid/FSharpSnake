@@ -18,8 +18,19 @@ let singlearg name args =
     | _ -> raise (BuiltinException
             (sprintf "%s: can only be called with one argument" name))
 
-let rec btostringopt inner args scope =
-    match singlearg "Print" args with
+let twoarg name args =
+    match args with
+    | [x; y] -> x, y
+    | _ -> raise (BuiltinException
+            (sprintf "%s: can only be called with two arguments" name))
+
+let anonfuncargs i =
+    [0..(i-1)]
+    |> List.map (sprintf "arg%i")
+    |> String.concat ","
+
+let rec bstropt inner args scope =
+    match singlearg "tostring" args with
     | ValInt i -> ValString (sprintf "%i" i), scope
     | ValString s -> 
         if inner then
@@ -33,7 +44,7 @@ let rec btostringopt inner args scope =
             match xs with
             | [] -> [], scope
             | v :: remaining ->
-                let vOut, newScope = btostringopt true [v] scope
+                let vOut, newScope = bstropt true [v] scope
                 match vOut with
                 | ValString s -> 
                     let rest, newScope2 = bprintinner remaining newScope
@@ -41,26 +52,86 @@ let rec btostringopt inner args scope =
                 | _ -> raise (BuiltinException "Invalid return type for ToString")
         let outList, outScope = bprintinner values scope
         ValString (sprintf "[%s]" (String.concat ", " outList)), outScope
-    | _ -> raise (BuiltinException "ToString: input type cannot be converted to string")
+    | ValNone -> ValString "none", scope
+    | ValReference xs ->
+        match xs with
+        | [] -> ValString ("emptyref"), scope
+        | x :: _ ->
+            match x with
+            | ScopeGlobal -> ValString ("global"), scope
+            | TempBlock -> ValString ("tempblock"), scope
+            | FuncLocal (s, i) ->
+                ValString (sprintf "local %s: %i" s i), scope
+            | ScopeLocal s -> ValString (sprintf "type %s" s), scope
+            | ScopeInstance (s, i) ->
+                ValString (sprintf "instance %s: %i" s i), scope
+    | ValFunc (args, _) ->
+        ValString (sprintf "anonfunc(%s)" (anonfuncargs args.Length)), scope
+    | ValBuiltinFunc _ -> ValString ("builtinfunc"), scope
+    | ValListInner _ ->
+        raise (BuiltinException "tostring: cannot directly access list inner")
+    //| _ -> raise (BuiltinException "tostring: input type cannot be converted to string")
 
-let btostring args scope =
-    btostringopt false args scope
+let bstr args scope =
+    bstropt false args scope
 let rec bprint args scope =
-    let v, newScope = btostring args scope
+    let v, newScope = bstr args scope
     match v with
     | ValString s -> printfn "%s" s; ValNone, scope
     | _ -> raise (BuiltinException "Invalid return type for ToString")
     
 
 let bsqrt args =
-    match singlearg "Sqrt" args with
+    match singlearg "sqrt" args with
     | ValInt i -> ValInt (int (sqrt (float i)))
-    | _ -> raise (BuiltinException "Sqrt: invalid input type")
+    | _ -> raise (BuiltinException "sqrt: invalid input type")
 
 let bnot e =
     match e with
     | ValBool b -> ValBool (not b)
     | _ -> raise (BuiltinException "!: type error - not a boolean")
+
+let bpushf args scope =
+    match twoarg "pushf" args with
+    | ValListReference ref, v ->
+        let xs = getListFromRef ref scope
+        ValNone, setListToRef ref (v :: xs) scope
+    | _ -> raise (BuiltinException "pushf: type error - first argument not a list")
+
+let bpopf args scope =
+    match singlearg "popf" args with
+    | ValListReference ref ->
+        let xs = getListFromRef ref scope
+        if xs.IsEmpty then
+            raise (BuiltinException "popf: cannot pop from empty list")
+        else
+            let v = List.head xs
+            v, setListToRef ref (List.tail xs) scope
+    | _ -> raise (BuiltinException "popf: type error - first argument not a list")
+
+let blen args scope =
+    match singlearg "len" args with
+    | ValListReference ref ->
+        let xs = getListFromRef ref scope
+        ValInt xs.Length, scope
+    | ValString s ->
+        ValInt s.Length, scope
+    | _ -> raise (BuiltinException "len: type error")
+
+let rec brange args scope =
+    match args with
+    | [x] ->
+        brange [ValInt 0; x] scope
+    | [x; y] ->
+        match x, y with
+        | ValInt i, ValInt j ->
+            if i >= j then
+                makeNewList [] scope
+            else
+                makeNewList (List.map ValInt [i..j]) scope
+        | _ ->
+            raise (BuiltinException "range: type error - argument not an int")
+    | _ -> raise (BuiltinException "range: incorrect number of arguments")
 
 let rec beqop e1 e2 =
     let res =
@@ -148,7 +219,12 @@ let contextfree bfun =
 
 let builtins : Map<string, Value> =
     [
+        ("str", ValBuiltinFunc bstr)
         ("print", ValBuiltinFunc bprint)
         ("sqrt", ValBuiltinFunc (contextfree bsqrt))
+        ("pushf", ValBuiltinFunc bpushf)
+        ("popf", ValBuiltinFunc bpopf)
+        ("len", ValBuiltinFunc blen)
+        ("range", ValBuiltinFunc brange)
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

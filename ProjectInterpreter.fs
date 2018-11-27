@@ -370,10 +370,7 @@ and evalExpr expr scope : (Value * Scope) =
     | BoolLiteral b -> ValBool b, scope
     | ListLiteral exprs ->
         let argVals, newScope = evalArgs exprs scope
-        let c = getListCount newScope
-        let newScope2 = setListCount (c + 1) newScope
-        let ref = globalListName c
-        ValListReference ref, setListToRef ref argVals newScope2
+        makeNewList argVals newScope
     | ThisLiteral -> ValReference (thisReference scope), scope
     | ParensExpr e -> evalExpr e scope
     | BinaryExpr(op, e1, e2) -> evalInfix (bbinary op) e1 e2 scope
@@ -484,11 +481,15 @@ let rec evalGlobals (ns : (string * OrderedNamespace) list) =
 
 
 let runMain defns =
-    let ons = makeNamespace defns
-    let ns, scope = evalGlobals ons
-    match Map.tryFind mainFunc ns with
-    | Some v ->
-        let res, _ = functionCallLocal mainFunc [] scope
-        res
-    | None -> raise (InterpreterException "No main function found")
+    try
+        let ons = makeNamespace defns
+        let ns, scope = evalGlobals ons
+        match Map.tryFind mainFunc ns with
+        | Some v ->
+            let res, _ = functionCallLocal mainFunc [] scope
+            res
+        | None -> raise (InterpreterException "No main function found")
+    with
+        BuiltinException e ->
+            raise (InterpreterException (sprintf "%s" e))
        
