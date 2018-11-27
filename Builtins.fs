@@ -109,6 +109,16 @@ let bpopf args scope =
             v, setListToRef ref (List.tail xs) scope
     | _ -> raise (BuiltinException "popf: type error - first argument not a list")
 
+let bconcat args scope =
+    match twoarg "concat" args with
+    | ValListReference ref1, ValListReference ref2 ->
+        let xs = getListFromRef ref1 scope
+        let ys = getListFromRef ref2 scope
+        makeNewList (xs @ ys) scope
+    | ValString s1, ValString s2 ->
+        ValString (s1 + s2), scope
+    | _ -> raise (BuiltinException "concat: type error")
+
 let blen args scope =
     match singlearg "len" args with
     | ValListReference ref ->
@@ -128,7 +138,7 @@ let rec brange args scope =
             if i >= j then
                 makeNewList [] scope
             else
-                makeNewList (List.map ValInt [i..j]) scope
+                makeNewList (List.map ValInt [i..(j-1)]) scope
         | _ ->
             raise (BuiltinException "range: type error - argument not an int")
     | _ -> raise (BuiltinException "range: incorrect number of arguments")
@@ -224,6 +234,7 @@ let builtins : Map<string, Value> =
         ("sqrt", ValBuiltinFunc (contextfree bsqrt))
         ("pushf", ValBuiltinFunc bpushf)
         ("popf", ValBuiltinFunc bpopf)
+        ("concat", ValBuiltinFunc bconcat)
         ("len", ValBuiltinFunc blen)
         ("range", ValBuiltinFunc brange)
         ("hello", ValString "Hello, world!")

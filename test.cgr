@@ -67,11 +67,9 @@ booltest():
 isprime(n):
     if n < 2:
         return false
-    let i = 2
-    while i <= sqrt(n):
+    for i in range(2, sqrt(n) + 1):
         if n % i == 0:
             return false
-        i += 1
     return true
 
 primetest():

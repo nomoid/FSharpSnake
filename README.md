@@ -38,6 +38,7 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - return statement
     - if/elif/else statements
     - while statement
+    - for in statement
 - Operators
     - Numeric (+, -, *, /, %)
     - Boolean (&, |)
@@ -45,10 +46,25 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Unary (-, +, !)
     - Operator assignment (+=, -=, *=, /=, %=, &=, |=)
 - Parenthases
+- Lists
+    - List accessor (e.g. a[b])
+    - List setter (e.g. a[b] = c)
+    - List builtin functions
+        - concat(list1, list2)
+            - Returns a new list with the two lists combined
+        - len(list)
+            - Returns the length of a list
+        - pushf(list, item)
+            - Pushes an item to the start of a list
+        - popf(list)
+            - Pops and returns an item from the start of a list
+        - range(start, end)
+            - Returns a list containing the interval [start, end) in ascending order
 - Literals
     - String (e.g. "Hello, world!")
     - Integer (e.g. 5, -12)
     - Boolean (true/false)
+    - List (e.g. [3, "abc", ["def", 12]])
     - Reference (this)
 - References
     - Property accessor (e.g. print(player.name))
@@ -57,7 +73,6 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Creating new instances (e.g. player())
 
 ## Upcoming Features
-- Lists
 - Card game engine
 
 ## Potential features

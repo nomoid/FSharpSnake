@@ -241,6 +241,15 @@ let rec executeBlock block scope =
     let popped = popScope newScope2
     //Pop the new scope
     v, popped
+and executeBlockWithMapping name v block scope =
+    //Make a new scope
+    let newScope = pushTempScope scope
+    let newScope2 = addToMapping name v newScope
+    //Eval statements
+    let newV, newScope3 = evalStmts block newScope2
+    let popped = popScope newScope3
+    //Pop the new scope
+    newV, popped
 and ifOnce cond block scope =
     let v, newScope = evalExpr cond scope
     match v with
@@ -277,6 +286,22 @@ and runWhile cond block scope =
         | Some _ -> vin, newScope
         // Tail call while loop
         | None -> runWhile cond block newScope
+and runForOnce name vs block scope =
+    match vs with
+    | [] -> None, scope
+    | v :: remaining ->
+        let execVal, newScope = executeBlockWithMapping name v block scope
+        match execVal with
+        | Some vout -> Some vout, newScope
+        | None -> runForOnce name remaining block newScope
+and runFor name expr block scope =
+    let v, newScope = evalExpr expr scope
+    match v with
+    | ValListReference ref ->
+        let vs = getListFromRef ref newScope
+        runForOnce name vs block newScope
+    //| ValString s ->
+    | _ -> raise (InterpreterException "For loop object cannot be iterated")
 and evalStmt stmt scope =
     match stmt with
     | FunctionCallStmt(name, args) ->
@@ -303,6 +328,8 @@ and evalStmt stmt scope =
         ifElse ((cond, block) :: condBlockList) optionBlock scope
     | WhileStmt(cond, block) ->
         runWhile cond block scope
+    | ForStmt(name, expr, block) ->
+        runFor name expr block scope
 and evalStmts stmts scope =
     match stmts with
     | [] -> None, scope

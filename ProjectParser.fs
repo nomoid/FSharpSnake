@@ -87,6 +87,7 @@ type Stmt =
         ((Expr * Stmt list) list) *
         Stmt list option
     | WhileStmt of Expr * Stmt list
+    | ForStmt of string * Expr * Stmt list
 
 type Defn =
     // Function with (name, arg_names[], body)
@@ -198,6 +199,10 @@ let rec prettyprintstmt stmt =
     | WhileStmt(cond, block) ->
         prettyprintgroup ("while " + prettyprintexpr cond)
                     prettyprintstmt block
+    | ForStmt(iden, expr, block) ->
+        prettyprintgroup
+            ("for " + iden + " in " + (prettyprintexpr expr))
+            prettyprintstmt block
 
 
 let prettyprintlist printer xs =
@@ -453,6 +458,9 @@ let pIdAssign =
 let pIdExpr =
     pseq (pleft pidentifier pidsep) pExpr id
 
+let pIdId =
+    pseq (pleft pidentifier pidsep) pidentifier id
+
 let pWordStmt pidx str outputProcessor input =
     let outcome = pidx input
     match outcome with
@@ -506,6 +514,12 @@ let pElseHeader = pWordStmt (pidentifier |>> (fun a -> a, ())) "else" id
 
 let pWhileHeader = pWordStmt pIdExpr "while" id
 
+let pForHeader =
+    pseq
+        (pleft (pWordStmt pIdId "for" id) pidsep)
+        (pWordStmt pIdExpr "in" id)
+        id
+
 let rec pFuncScope header =
     let b : Parser<Stmt> = ((pLine pStmt) <|> pInnerScope)
     pGroup header b
@@ -521,7 +535,9 @@ and pIfGroup a =
         )
 and pWhileGroup a =
     a |> pFuncScope pWhileHeader WhileStmt
-and pInnerScope a = a |> (pIfGroup <|> pWhileGroup)
+and pForGroup a =
+    a |> pFuncScope pForHeader (fun ((a, b), c) -> ForStmt(a, b, c))
+and pInnerScope a = a |> (pIfGroup <|> pWhileGroup <|> pForGroup)
 
 let (pDefn : Parser<Defn>), pDefnImpl = recparser()
 
@@ -547,8 +563,14 @@ let parseLower input : Defn list option =
 let cleanLower input =
     let clean0 = Regex.Replace(input, @"[\n\r]+", "")
     let clean1 = Regex.Replace(clean0, @"[\s]{2,}", " ")
-    let clean2 =
-        Regex.Replace(clean1, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1?$2")
+    let rec cleanLowerInner input =
+        let cleanInner =
+            Regex.Replace(input, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1?$2")
+        if cleanInner = input then
+            cleanInner
+        else
+            cleanLowerInner cleanInner
+    let clean2 = cleanLowerInner clean1
     let clean3 = Regex.Replace(clean2, @" ", "")
     clean3
 
