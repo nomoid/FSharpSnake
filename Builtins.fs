@@ -2,6 +2,7 @@ module Builtins
 
 open ProjectParser
 open InterpreterTypes
+open ScopeHelper
 
 exception BuiltinException of string
 
@@ -17,12 +18,39 @@ let singlearg name args =
     | _ -> raise (BuiltinException
             (sprintf "%s: can only be called with one argument" name))
 
-let bprint args =
+let rec btostringopt inner args scope =
     match singlearg "Print" args with
-    | ValInt i -> printfn "%i" i; ValNone
-    | ValString s -> printfn "%s" s; ValNone
-    | ValBool b -> printfn "%s" (if b then "true" else "false"); ValNone
-    | _ -> raise (BuiltinException "Print: input type cannot be printed")
+    | ValInt i -> ValString (sprintf "%i" i), scope
+    | ValString s -> 
+        if inner then
+            ValString (sprintf "\"%s\"" s), scope
+        else
+            ValString (sprintf "%s" s), scope
+    | ValBool b -> ValString (if b then "true" else "false"), scope
+    | ValListReference ref ->
+        let values = getListFromRef ref scope
+        let rec bprintinner xs scope =
+            match xs with
+            | [] -> [], scope
+            | v :: remaining ->
+                let vOut, newScope = btostringopt true [v] scope
+                match vOut with
+                | ValString s -> 
+                    let rest, newScope2 = bprintinner remaining newScope
+                    s :: rest, newScope2
+                | _ -> raise (BuiltinException "Invalid return type for ToString")
+        let outList, outScope = bprintinner values scope
+        ValString (sprintf "[%s]" (String.concat ", " outList)), outScope
+    | _ -> raise (BuiltinException "ToString: input type cannot be converted to string")
+
+let btostring args scope =
+    btostringopt false args scope
+let rec bprint args scope =
+    let v, newScope = btostring args scope
+    match v with
+    | ValString s -> printfn "%s" s; ValNone, scope
+    | _ -> raise (BuiltinException "Invalid return type for ToString")
+    
 
 let bsqrt args =
     match singlearg "Sqrt" args with
@@ -120,7 +148,7 @@ let contextfree bfun =
 
 let builtins : Map<string, Value> =
     [
-        ("print", ValBuiltinFunc (contextfree bprint))
+        ("print", ValBuiltinFunc bprint)
         ("sqrt", ValBuiltinFunc (contextfree bsqrt))
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

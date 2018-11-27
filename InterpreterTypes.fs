@@ -2,6 +2,7 @@ module InterpreterTypes
 
 open ProjectParser
 
+exception InterpreterException of string
 
 type ScopeLayer =
     | ScopeGlobal

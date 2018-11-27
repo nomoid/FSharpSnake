@@ -2,22 +2,15 @@ module ProjectInterpreter
 
 open ProjectParser
 open InterpreterTypes
+open ScopeHelper
 open Builtins
 
 //Consts
 let anonArgs = "$anon$"
 
-let scopeLocalCountName name =
-    sprintf "$scopelocalcount_%s$" name
-
-let funcLocalCountName name =
-    sprintf "$funclocalcount_%s$" name
-
 let constructorName = "new"
 
 let mainFunc = "main"
-
-let globalScope : NoRefScope = [ScopeGlobal]
 
 type EvalExpr =
     | Unevaled of Expr
@@ -41,8 +34,6 @@ type LValueStore =
 //let references : System.Collections.Generic.Dictionary<string, Namespace>
 //    = new System.Collections.Generic.Dictionary<string, Namespace>()
 
-exception InterpreterException of string
-
 let rec makeNamespace defns =
     match defns with
     | [] -> []
@@ -55,59 +46,6 @@ let rec makeNamespace defns =
             (name, ONSSubspace (makeNamespace body)) :: ending
         | AssignmentDefn (name, expr) ->
             (name, ONSVar (Unevaled expr)) :: ending
-let findRef (scope : Scope) : RefType =
-    let nrs, refs = scope
-    match Map.tryFind nrs refs with
-    | None ->
-        raise (InterpreterException
-            (sprintf "Scope \"%A\" not found in refs" (fst scope)))
-    | Some (opts, mapping) -> opts, mapping
-
-//Scope helper methods
-let popScope (scope : Scope) : Scope =
-    //Leaving a scope
-    let nrs, refs = scope
-    let opts, _ = findRef scope
-    if List.contains PersistentScope opts then
-        List.tail nrs, refs
-    else
-        List.tail nrs, Map.remove nrs refs
-
-let pushScope name rules defaultMapping (scope : Scope) : Scope =
-    let nrs, refs = scope
-    let newLocation = name :: nrs
-    newLocation, Map.add newLocation (rules, defaultMapping) refs
-
-let pushTempScope (scope : Scope) : Scope =
-    pushScope TempBlock List.empty Map.empty scope
-
-let addToMapping name value (scope : Scope) : Scope =
-    let nrs, refs = scope
-    let opts, mapping = findRef scope
-    nrs, Map.add nrs (opts, Map.add name value mapping) refs
-
-let getFromMapping name (scope : Scope) : Value option =
-    let _, mapping = findRef scope
-    Map.tryFind name mapping
-
-let getLocalCount name scope =
-    match getFromMapping name scope with
-    | None -> 0
-    | Some v ->
-        match v with
-        | ValInt i -> i
-        | _ ->
-            raise (InterpreterException
-            "Incorrect type for scope local count")
-
-let setLocalCount name count scope =
-    addToMapping name (ValInt count) scope
-
-let pushFunctionLocalScope scopeName args (scope : Scope) : Scope =
-    let count = getLocalCount (funcLocalCountName scopeName) scope
-    let newScope = setLocalCount (funcLocalCountName scopeName) (count + 1) scope
-    pushScope (FuncLocal (scopeName, count)) List.empty args newScope
-
 
 //Name resolution & updating
 
@@ -164,20 +102,6 @@ let updateName name newVal (scope : Scope) : Scope =
         | None ->
             //Declare new local variable
             addToMapping name newVal scope
-
-let getListFromRef listRef (scope : Scope) =
-    let _, refs = scope
-    match getFromMapping listRef (globalScope, refs) with
-    | None -> raise (InterpreterException "List not found in refs")
-    | Some v ->
-        match v with
-        | ValListInner innerL -> innerL
-        | _ -> raise (InterpreterException "Incorrect type for inner list")
-
-let setListToRef listRef list (scope : Scope) =
-    let nrs, refs = scope
-    let _, newRefs = addToMapping listRef (ValListInner list) (globalScope, refs)
-    nrs, newRefs
 
 let rec makeArgsMap argNames args =
     match args with
@@ -518,6 +442,12 @@ and evalExpr expr scope : (Value * Scope) =
     | NumLiteral n -> ValInt n, scope
     | StringLiteral str -> ValString str, scope
     | BoolLiteral b -> ValBool b, scope
+    | ListLiteral exprs ->
+        let argVals, newScope = evalArgs exprs scope
+        let c = getListCount newScope
+        let newScope2 = setListCount (c + 1) newScope
+        let ref = globalListName c
+        ValListReference ref, setListToRef ref argVals newScope2
     | ThisLiteral -> ValReference (thisReference scope), scope
     | ParensExpr e -> evalExpr e scope
     | BinaryExpr(op, e1, e2) -> evalInfix (bbinary op) e1 e2 scope

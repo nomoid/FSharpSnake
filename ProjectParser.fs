@@ -64,6 +64,7 @@ type Expr =
     | NumLiteral of int
     | StringLiteral of string
     | BoolLiteral of bool
+    | ListLiteral of Expr list
     | ThisLiteral
     | ParensExpr of Expr
     | BinaryExpr of BinaryOp * Expr * Expr
@@ -96,11 +97,13 @@ type Defn =
     | ScopeDefn of string * Defn list
     | AssignmentDefn of string * Expr
 
-let prettyprintfunc stringify exprs =
-    "(" + (List.fold (fun a b ->
+let prettyprintcommasep stringify exprs =
+    (List.fold (fun a b ->
             (if a <> "" then a + ", " else "") + stringify b
         ) "" exprs)
-        + ")"
+
+let prettyprintfunc stringify exprs =
+    "(" + (prettyprintcommasep stringify exprs) + ")"
 
 
 let rec prettyprintexpr expr =
@@ -109,6 +112,8 @@ let rec prettyprintexpr expr =
     | NumLiteral(num) -> sprintf "%i" num
     | StringLiteral(str) -> sprintf "\"%s\"" str
     | BoolLiteral(b) -> if b then "true" else "false"
+    | ListLiteral(exprs) ->
+        "[" + (prettyprintcommasep prettyprintexpr exprs) + "]"
     | ThisLiteral -> "this"
     | ParensExpr(e) -> sprintf "(%s)" (prettyprintexpr e)
     | BinaryExpr(op, e1, e2) -> prettyprintinfix (optostr op) e1 e2
@@ -307,6 +312,12 @@ let pThisLiteral = pfresult (pstr "this") (ThisLiteral)
 let pTrueLiteral = pfresult (pstr "true") (BoolLiteral true)
 let pFalseLiteral = pfresult (pstr "false") (BoolLiteral false)
 let pBoolLiteral = pTrueLiteral <|> pFalseLiteral
+let pListLiteral = 
+    pbetween 
+        (pchar '[') 
+        (pchar ']') 
+        (plistsep (pchar ',') pExpr)
+        |>> ListLiteral
 
 let pParens = pbetween (pchar '(') (pchar ')') pExpr |>> ParensExpr
 
@@ -327,6 +338,7 @@ let pConsumingExpr =
     <|> pNumLiteral
 //    <|> pStrLiteral
     <|> pParens
+    <|> pListLiteral
 let makebin bop (a, b) =
     if bop = Dot then
         match b with
