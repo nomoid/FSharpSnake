@@ -20,8 +20,9 @@ type Value =
     | ValInt of int
     | ValString of string
     | ValFunc of string list * Stmt list
-    | ValList of Value list
-    | ValReference of ScopeLayer list
+    | ValListReference of string
+    | ValListInner of Value list
+    | ValReference of NoRefScope
     | ValBuiltinFunc of (Value list -> Scope -> Value * Scope)
 and RefType = ScopeRules list * Map<string, Value>
 and Refs = Map<NoRefScope, RefType>

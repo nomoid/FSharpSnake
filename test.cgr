@@ -95,6 +95,21 @@ primetest():
         print(1)
     return 0
 
+fib(i):
+    if i <= 0:
+        return 0
+    elif i == 1:
+        return 1
+    return fib(i - 1) + fib(i - 2)
+
+fibtest():
+    let a = fib(7) - 12
+    a *= fib(8) - 20
+    a *= fib(0) + 1
+    a *= fib(10) - 54
+    a *= fib(a)
+    return a - 1
+
 main():
     let str = "Hello, world!"
     let str2 = "F# is the best!"
@@ -108,5 +123,6 @@ main():
     print(comptest())
     print(booltest())
     print(primetest())
+    print(fibtest())
     print("done.")
     return 0

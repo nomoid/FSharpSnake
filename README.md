@@ -57,10 +57,11 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Creating new instances (e.g. player())
 
 ## Upcoming Features
+- Lists
 - Card game engine
 
 ## Potential features
-- Lists/Dictionaries
+- Dictionaries
 - Escape characters in strings
 - String concatenation
 - Multi-line statements/expressions

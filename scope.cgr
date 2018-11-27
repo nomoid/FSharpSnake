@@ -1,22 +1,6 @@
-#outer = this
-#x = 0
-#
-#foo(x):
-#    return 2 * x
-#
-#bar():
-#    return outer
-#
+# Test scoping
 main():
-    #this.x = 2
-    #y = 3
-    #print(bar().x)
-    #bar().x += 1
-    #print(outer.x)
-    #print(outer.foo(outer.x))
-    #outer = this
-    #print(outer.y)
-    #print(outer.x + this.x)
+    print("The following outputs should print \"0\":")
     let p1 = 0
     let p2 = 0
     if true:
@@ -24,13 +8,14 @@ main():
         p2 = player()
     p1.a = 5
     p2.a = 6
-    print(p1.a)
-    print(p2.a)
+    print(p1.a - 5)
+    print(p2.a - 6)
     p1.a -= p2.a
     p1.b = p1.a * -7
-    print(p1.b)
-    print(p1.abc())
-    print(p1.abc())
+    print(p1.b - 7)
+    print(p1.abc() - 7)
+    p1.a += p1.abc()
+    print(p1.abc() - 47)
     return 0
 
 glob = 1
@@ -44,6 +29,8 @@ player:
     inner:
         b = 2
         c():
+            a += b
+            b += a
             glob += b
             b += glob
-            return glob
+            return b

@@ -61,7 +61,6 @@ let optostr op =
 
 type Expr =
     | FunctionCallExpr of string * Expr list
-    | Identifier of string
     | NumLiteral of int
     | StringLiteral of string
     | BoolLiteral of bool
@@ -71,12 +70,18 @@ type Expr =
     | UnaryMinus of Expr
     | UnaryPlus of Expr
     | UnaryNot of Expr
-    | PropertyAccessor of Expr * string
     | PropertyFunctionCall of Expr * string * Expr list
+    | LValueExpr of LValue
+// Value that can appear at the left side of an assignment
+and LValue =
+    | PropertyAccessor of Expr * string
+    | PropertyArrayAccessor of Expr * string * Expr list
+    | ArrayAccessor of Expr * Expr list
+    | Identifier of string
 
 type Stmt =
     | FunctionCallStmt of string * Expr list
-    | AssignmentStmt of Expr option * string * BinaryOp option * Expr
+    | AssignmentStmt of LValue * BinaryOp option * Expr
     | LetStmt of string * Expr
     | ReturnStmt of Expr
     | IfElseStmt of
@@ -97,10 +102,10 @@ let prettyprintfunc stringify exprs =
         ) "" exprs)
         + ")"
 
+
 let rec prettyprintexpr expr =
     match expr with
     | FunctionCallExpr(name, exprs) -> prettyprintcall name exprs
-    | Identifier(name) -> name
     | NumLiteral(num) -> sprintf "%i" num
     | StringLiteral(str) -> sprintf "\"%s\"" str
     | BoolLiteral(b) -> if b then "true" else "false"
@@ -110,34 +115,50 @@ let rec prettyprintexpr expr =
     | UnaryMinus(e) -> sprintf "-%s" (prettyprintexpr e)
     | UnaryPlus(e) -> sprintf "+%s" (prettyprintexpr e)
     | UnaryNot(e) -> sprintf "!%s" (prettyprintexpr e)
-    | PropertyAccessor(expr, name) -> 
-        sprintf "%s.%s"
-            (prettyprintexpr expr)
-            name
     | PropertyFunctionCall(expr, name, exprs) ->
         sprintf "%s.%s"
             (prettyprintexpr expr)
             (prettyprintcall name exprs)
-       
+    | LValueExpr lv ->
+        prettyprintlvalue lv
+and prettyprintlvalue lv =
+    match lv with
+    | Identifier name -> name
+    | PropertyAccessor(expr, name) -> 
+        sprintf "%s.%s"
+            (prettyprintexpr expr)
+            name
+    | PropertyArrayAccessor(expr, name, exprs) ->
+        sprintf "%s.%s%s"
+            (prettyprintexpr expr)
+            name
+            (prettyprintarrayaccess exprs)
+    | ArrayAccessor(expr, exprs) ->
+        sprintf "%s%s"
+            (prettyprintexpr expr)
+            (prettyprintarrayaccess exprs)
+and prettyprintarrayaccess exprs =
+    let wrapWithArray str =
+        sprintf "[%s]" str
+    exprs 
+    |> List.map prettyprintexpr 
+    |> List.map wrapWithArray 
+    |> String.concat ""
 and prettyprintcall name exprs =
     name + ((prettyprintfunc prettyprintexpr) exprs)
 and prettyprintinfix op e1 e2 =
     sprintf "%s %s %s"
             (prettyprintexpr e1) op (prettyprintexpr e2)
 
-let prettyprintassignment oexpr name oop expr =
-    let prefix =
-        match oexpr with
-        | None -> ""
-        | Some expr -> sprintf "%s." (prettyprintexpr expr)
+let prettyprintassignment lv oop expr =
     let opPart =
         match oop with
         | None -> ""
         | Some op -> optostr op
-    sprintf "%s%s %s= %s" prefix name opPart (prettyprintexpr expr)
+    sprintf "%s %s= %s" (prettyprintlvalue lv) opPart (prettyprintexpr expr)
 
 let prettyprintlet name expr =
-    "let " + (prettyprintassignment None name None expr)
+    "let " + (prettyprintassignment (Identifier name) None expr)
 
 let defaultIndentationSize = 4
 // Four space indentation only for now
@@ -153,7 +174,8 @@ let rec prettyprintgroup header innerPrinter block =
 let rec prettyprintstmt stmt =
     match stmt with
     | FunctionCallStmt(name, exprs) -> [prettyprintcall name exprs]
-    | AssignmentStmt(oexpr, name, op, expr) -> [prettyprintassignment oexpr name op expr]
+    | AssignmentStmt(lv, op, expr) -> 
+        [prettyprintassignment lv op expr]
     | LetStmt(name, expr) -> [prettyprintlet name expr]
     | ReturnStmt(expr) -> ["return " + prettyprintexpr expr]
     | IfElseStmt((cond, block), condBlockList, optionBlock) ->
@@ -188,7 +210,8 @@ let rec prettyprintdef def =
             prettyprintstmt body
     | ScopeDefn(name, body) ->
         prettyprintgroup name prettyprintdef body
-    | AssignmentDefn(name, expr) -> [prettyprintassignment None name None expr]
+    | AssignmentDefn(name, expr) -> 
+        [prettyprintassignment (Identifier name) None expr]
 
 let prettyprint =
     prettyprintlist prettyprintdef
@@ -229,7 +252,7 @@ let pidentifier =
         )
 
 let pidsep = (poption (pchar '?'))
-let pidExpr = pidentifier |>> Identifier
+let pid = pidentifier |>> Identifier
 
 let plistsep sepParser innerParser =
     poption (pseq (pmany0 (pleft innerParser sepParser)) innerParser
@@ -300,15 +323,29 @@ let pConsumingExpr =
     <|> pFuncCallExpr
     <|> pThisLiteral
     <|> pBoolLiteral
-    <|> pidExpr
+    <|> (pid |>> LValueExpr)
     <|> pNumLiteral
 //    <|> pStrLiteral
     <|> pParens
 let makebin bop (a, b) =
     if bop = Dot then
         match b with
-        | Identifier i -> Some (PropertyAccessor(a, i))
-        | FunctionCallExpr (name, args) -> Some (PropertyFunctionCall(a, name, args))
+        | LValueExpr lv ->
+            match lv with
+            | Identifier i -> Some ((PropertyAccessor(a, i)) |> LValueExpr)
+            | ArrayAccessor (expr, args) ->
+                match expr with
+                | LValueExpr lv ->
+                    match lv with
+                    | Identifier i -> 
+                        Some 
+                            ((PropertyArrayAccessor(a, i, args)) 
+                            |> LValueExpr)
+                    | _ -> None
+                | _ -> None
+            | _ -> None
+        | FunctionCallExpr (name, args) -> 
+            Some (PropertyFunctionCall(a, name, args))
         | _ -> None
     else
         Some (BinaryExpr (bop, a, b))
@@ -362,12 +399,21 @@ let combineOpsRight precs (cexpr, xs) =
 let combineOpsLeft precs (cexpr, xs) =
     combineOps false precs (rightToLeftAssoc cexpr xs [])
 
+let pArrayAccessSingle =
+    pbetween (pchar '[') (pchar ']') pExpr
+
+let pArrayAccessExpr =
+    pseq pConsumingExpr (pmany1 pArrayAccessSingle) ArrayAccessor
+
+let pInnerExpr =
+    (pArrayAccessExpr |>> LValueExpr) <|> pConsumingExpr
+
 pExprImpl :=
     pmapoption
-        (pseq pConsumingExpr
+        (pseq pInnerExpr
             (pmany0
                 (pseq (pinfixop binaryOps)
-                    pConsumingExpr
+                    pInnerExpr
                     id
                 )
             )
@@ -378,10 +424,16 @@ let pAssignmentExpr input =
     | Failure -> Failure
     | Success (expr, rem) ->
         match expr with
-        | PropertyAccessor (inner, name) ->
-            Success ((Some inner, name), rem)
+        | LValueExpr lv ->
+            Success (lv, rem)
+        (*| PropertyAccessor (inner, name) ->
+            Success ((Some inner, name, None), rem)
         | Identifier (name) ->
-            Success ((None, name), rem)
+            Success ((None, name, None), rem)
+        | PropertyArrayAccessor (inner, name, arr) ->
+            Success ((Some inner, name, Some arr), rem)
+        | ArrayAccessor (name, arr) ->
+            Success ((None, name, arr), rem)*)
         | _ -> Failure
 
 let pOpEq =
@@ -391,7 +443,11 @@ let pComplexAssignment =
     pseq (pseq pAssignmentExpr pOpEq id) pExpr id
 let pSimpleAssignment =
     pseq (pleft pidentifier (pchar '=')) pExpr id
-let pAssignmentStmt = pComplexAssignment |>> (fun (((a, b), c), d) -> a, b, c, d) |>> AssignmentStmt
+let pAssignmentStmt = 
+    pComplexAssignment 
+    //|>> (fun (((a, b), c), d) -> a, b, c, d) 
+    |>> (fun ((a, b), c) -> a, b, c)
+    |>> AssignmentStmt
 let pAssignmentGlobal = pSimpleAssignment |>> AssignmentDefn
 
 

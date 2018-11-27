@@ -34,7 +34,6 @@ let bnot e =
     | ValBool b -> ValBool (not b)
     | _ -> raise (BuiltinException "!: type error - not a boolean")
 
-
 let rec beqop e1 e2 =
     let res =
         match e1, e2 with
@@ -43,13 +42,15 @@ let rec beqop e1 e2 =
         | ValInt a, ValInt b -> a = b
         | ValString s1, ValString s2 -> s1 = s2
         | ValFunc (n1, b1), ValFunc (n2, b2) -> (n1 = n2) && (b1 = b2)
-        | ValList l1, ValList l2 ->
-            List.fold (&&) true
-                (List.zip l1 l2 |> List.map (fun (x, y) ->
-                    match beqop x y with
-                    | ValBool inner -> inner
-                    | _ -> false)
-                )
+        | ValListReference l1, ValListReference l2 ->
+            //TODO stuctural equality for lists
+            l1 = l2
+            //List.fold (&&) true
+            //    (List.zip l1 l2 |> List.map (fun (x, y) ->
+            //        match beqop x y with
+            //        | ValBool inner -> inner
+            //        | _ -> false)
+            //    )
         | ValReference r1, ValReference r2 -> r1 = r2
         | _, _ ->
             raise (BuiltinException "==: type error on one or more arguments")
