@@ -70,6 +70,9 @@ let rec bstropt inner args scope =
     | ValBuiltinFunc _ -> ValString ("builtinfunc"), scope
     | ValListInner _ ->
         raise (BuiltinException "tostring: cannot directly access list inner")
+    | ValOrderedNamespace _ ->
+        raise (BuiltinException
+            "tostring: cannot directly access ordered namespace")
     //| _ -> raise (BuiltinException "tostring: input type cannot be converted to string")
 
 let bstr args scope =

@@ -12,19 +12,7 @@ let constructorName = "new"
 
 let mainFunc = "main"
 
-type EvalExpr =
-    | Unevaled of Expr
-    | Evaled of Value
-
-type OrderedNamespace =
-    | ONSSubspace of (string * OrderedNamespace) list
-    | ONSVar of EvalExpr
-    | ONSFunc of FuncType
-
-type Namespace =
-    | NSSubspace of Map<string, Namespace>
-    | NSVar of EvalExpr
-    | NSFunc of FuncType
+let onsName = "$ons$"
 
 type LValueStore =
     | PropertyStore of NoRefScope * string
@@ -436,75 +424,108 @@ let staticScope scope =
             newLayer :: inner
     staticScopeInner nrs, refs
 
-let newInstance name args scope : Value * Scope =
+
+let rec scopeCopyOf (opts, mapping) instanceName scope =
+    match Map.tryFind onsName mapping with
+    | Some (ValOrderedNamespace ons) ->
+        snd
+            (evalGlobalInner
+                ons
+                (pushScope
+                    instanceName
+                    (PersistentScope :: List.empty)
+                    Map.empty scope
+                )
+            )
+    | _ ->
+        raise (InterpreterException
+            "Expr shound not be already evaluated")
+
+and newInstance name args scope : Value * Scope =
     noarg "new" args
     //Pop until out of \"new\" scope
     let ((v, innerScope), newScope) = resolveName name scope
     //Make the scope static so a copy can be obtained
-    let scopeToCopy = ScopeLocal name :: fst (staticScope innerScope)
+    let scopeToCopy = ScopeLocal name :: fst innerScope
     let count = getLocalCount (scopeLocalCountName name) innerScope
-    let newInnerScope = setLocalCount (scopeLocalCountName name) (count + 1) innerScope
+    let newInnerScope =
+        setLocalCount (scopeLocalCountName name) (count + 1) innerScope
     let instanceName = ScopeInstance (name, count)
     let instanceScope = instanceName :: fst newInnerScope
-    let newRefs =
-        Map.add
-            instanceScope
+    let newNewInnerScope =
+        (scopeCopyOf
             (findRef (scopeToCopy, snd newInnerScope))
-            (snd newInnerScope)
+            instanceName
+            newInnerScope
+        )
+    let _, newRefs = newNewInnerScope
+    //printfn "--------------------------------------------------"
+    //printfn "%A" newNewInnerScope
+    //let newRefs =
+    //    Map.add
+    //        instanceScope
+    //        (opts, scopeCopy)
+    //        (snd newNewInnerScope)
     let newScope2 = fst newScope, newRefs
     ValReference instanceScope, newScope2
 
-let defaultConstructor name =
+and defaultConstructor name =
     ValBuiltinFunc(newInstance name)
 
-let rec evalGlobals (ns : (string * OrderedNamespace) list) =
-    let rec evalGlobalInner ns scope =
-        match ns with
-        | [] -> Map.empty, scope
-        | pair :: remaining ->
-            let name, ons = pair
-            let ns, newScope =
-                match ons with
-                | ONSVar v ->
-                    match v with
-                    | Unevaled expr ->
-                        let newVal, sc = evalExpr expr scope
-                        NSVar (Evaled newVal), addToMapping name newVal sc
-                    | Evaled _ ->
-                        raise (InterpreterException
-                            "Expr shound not be already evaluated")
-                | ONSFunc(args, body) ->
-                    NSFunc(args, body),
-                        addToMapping name (ValFunc(args, body)) scope
-                | ONSSubspace list ->
-                    // Push and pop a new scope
-                    let newVal, sc =
-                        evalGlobalInner list
-                            (pushScope
-                                (ScopeLocal name)
-                                (PersistentScope :: List.empty)
-                                Map.empty scope
-                            )
-                    NSSubspace (newVal), popScope sc
-            let map, newScope2 = evalGlobalInner remaining newScope
-            let newScope3 =
-                match ons with
-                | ONSSubspace _ ->
-                    let tempScope = addToMapping name (defaultConstructor name) newScope2
-                    // Implementation of .new syntax
-                    //let outerContext = fst newScope2
-                    //let tempScope = addToMapping name (ValReference outerContext) newScope2
-                    //let defConsMap = Map.add constructorName (defaultConstructor name) Map.empty
-                    //let tempScope2 =
-                    //    pushScope
-                    //        name
+and evalGlobalInner ns scope =
+    match ns with
+    | [] -> Map.empty, scope
+    | pair :: remaining ->
+        let name, ons = pair
+        let ns, newScope =
+            match ons with
+            | ONSVar v ->
+                match v with
+                | Unevaled expr ->
+                    let newVal, sc = evalExpr expr scope
+                    NSVar (Evaled newVal), addToMapping name newVal sc
+                | Evaled _ ->
+                    raise (InterpreterException
+                        "Expr shound not be already evaluated")
+            | ONSFunc(args, body) ->
+                NSFunc(args, body),
+                    addToMapping name (ValFunc(args, body)) scope
+            | ONSSubspace list ->
+                // Push and pop a new scope
+                let newVal, sc =
+                    Map.empty, (pushScope
+                        (ScopeLocal name)
+                        (PersistentScope :: List.empty)
+                        (Map.add onsName (ValOrderedNamespace list) Map.empty)
+                        scope
+                    ) 
+                    //evalGlobalInner list
+                    //    (pushScope
+                    //        (ScopeLocal name)
                     //        (PersistentScope :: List.empty)
-                    //        defConsMap
-                    //        tempScope
-                    //popScope tempScope2
-                    tempScope
-                | _-> newScope2
-            Map.add name ns map, newScope3
+                    //        Map.empty scope
+                    //    )
+                NSSubspace (newVal), popScope sc
+        let map, newScope2 = evalGlobalInner remaining newScope
+        let newScope3 =
+            match ons with
+            | ONSSubspace _ ->
+                let tempScope = addToMapping name (defaultConstructor name) newScope2
+                // Implementation of .new syntax
+                //let outerContext = fst newScope2
+                //let tempScope = addToMapping name (ValReference outerContext) newScope2
+                //let defConsMap = Map.add constructorName (defaultConstructor name) Map.empty
+                //let tempScope2 =
+                //    pushScope
+                //        name
+                //        (PersistentScope :: List.empty)
+                //        defConsMap
+                //        tempScope
+                //popScope tempScope2
+                tempScope
+            | _-> newScope2
+        Map.add name ns map, newScope3
+let rec evalGlobals (ns : (string * OrderedNamespace) list) =
     evalGlobalInner ns (globalScope,
         Map.add
             globalScope
