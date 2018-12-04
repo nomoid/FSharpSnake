@@ -44,7 +44,7 @@ iterate(oldList):
 
 #Rule 110
 rule110(a, b, c):
-    return ((!c) & b) | (c & (!(a & b)))
+    return (!c & b) | (c & !(a & b))
 
 #Helper functions
 

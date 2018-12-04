@@ -280,6 +280,7 @@ let pFuncHelper innerParser =
 
 
 let (pExpr : Parser<Expr>), pExprImpl = recparser()
+let (pInnerExpr : Parser<Expr>), pInnerExprImpl = recparser()
 
 let pFuncCall = pFuncHelper pExpr
 
@@ -332,11 +333,11 @@ let pListLiteral =
 
 let pParens = pbetween (pchar '(') (pchar ')') pExpr |>> ParensExpr
 
-let pUnaryMinus = pright (pchar '-') pExpr |>> UnaryMinus
+let pUnaryMinus = pright (pchar '-') pInnerExpr |>> UnaryMinus
 
-let pUnaryPlus = pright (pchar '+') pExpr |>> UnaryPlus
+let pUnaryPlus = pright (pchar '+') pInnerExpr |>> UnaryPlus
 
-let pUnaryNot = pright (pchar '!') pExpr |>> UnaryNot
+let pUnaryNot = pright (pchar '!') pInnerExpr |>> UnaryNot
 
 let pUnaryOp = pUnaryMinus <|> pUnaryPlus <|> pUnaryNot
 
@@ -429,7 +430,7 @@ let pArrayAccessSingle =
 let pArrayAccessExpr =
     pseq pConsumingExpr (pmany1 pArrayAccessSingle) ArrayAccessor
 
-let pInnerExpr =
+pInnerExprImpl :=
     (pArrayAccessExpr |>> LValueExpr) <|> pConsumingExpr
 
 pExprImpl :=
