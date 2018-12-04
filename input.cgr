@@ -1,0 +1,5 @@
+main():
+    let name = input("Enter your name: ")
+    let msg = concat("Hello ", name)
+    print(msg)
+    return 0

@@ -1,5 +1,7 @@
 module Builtins
 
+open System
+
 open ProjectParser
 open InterpreterTypes
 open ScopeHelper
@@ -77,12 +79,24 @@ let rec bstropt inner args scope =
 
 let bstr args scope =
     bstropt false args scope
-let rec bprint args scope =
+let bprintraw args scope =
     let v, newScope = bstr args scope
     match v with
-    | ValString s -> printfn "%s" s; ValNone, scope
+    | ValString s -> printf "%s" s; ValNone, newScope
     | _ -> raise (BuiltinException "Invalid return type for ToString")
-    
+let bprint args scope =
+    let v, newScope = bprintraw args scope
+    printfn ""
+    v, newScope
+
+let binput args scope =
+    match args with
+    | [] -> ValString(Console.ReadLine()), scope
+    | [v] ->
+        let _, newScope = bprintraw [v] scope
+        ValString(Console.ReadLine()), newScope
+    | _ ->
+        raise (BuiltinException "input: incorrect number of arguments")
 
 let bsqrt args =
     match singlearg "sqrt" args with
@@ -280,6 +294,8 @@ let builtins : Map<string, Value> =
     [
         ("str", ValBuiltinFunc bstr)
         ("print", ValBuiltinFunc bprint)
+        ("printraw", ValBuiltinFunc bprintraw)
+        ("input", ValBuiltinFunc binput)
         ("sqrt", ValBuiltinFunc (contextfree bsqrt))
         ("pushf", ValBuiltinFunc bpushf)
         ("popf", ValBuiltinFunc bpopf)
