@@ -1,0 +1,14 @@
+isprime(n):
+    if n < 2:
+        return false
+    for i in range(2, sqrt(n) + 1):
+        if n % i == 0:
+            return false
+    return true
+
+main():
+    print("Print all prime numbers less than 100:")
+    for i in range(100):
+        if isprime(i):
+            print(i)
+    return 0

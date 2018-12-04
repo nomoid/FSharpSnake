@@ -1,0 +1,15 @@
+main():
+    print("For numbers from 1 to 50, inclusive")
+    print("Print Fizz for numbers divisble by 3")
+    print("Print Buzz for numbers divisible by 5")
+    for i in range(1,51):
+        let b1 = i % 3 == 0
+        let b2 = i % 5 == 0
+        if b1 | b2:
+            let s = concat(str(i), ":")
+            if b1:
+                s = concat(s, " Fizz")
+            if b2:
+                s = concat(s, " Buzz")
+            print(s)
+    return 0

@@ -663,7 +663,7 @@ let stringReplace (str : string) index length replacement =
                         str.[index + length .. str.Length - 1]]
 
 let extractQuotes line (strings : string[]) =
-    let quoteRegex = new Regex("(\"([^\"\\\\]|\\\\\\\\|\\\\\")+\")")
+    let quoteRegex = new Regex("(\"([^\"\\\\]|\\\\\\\\|\\\\\")*\")")
     let m = quoteRegex.Match(line)
     if m.Success then
         let firstMatch = List.head (Seq.toList m.Groups)

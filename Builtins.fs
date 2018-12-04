@@ -146,6 +146,52 @@ let rec brange args scope =
             raise (BuiltinException "range: type error - argument not an int")
     | _ -> raise (BuiltinException "range: incorrect number of arguments")
 
+let bclone args scope =
+    match singlearg "clone" args with
+    | ValListReference ref ->
+        let xs = getListFromRef ref scope
+        makeNewList xs scope
+    | ValInt i -> ValInt i, scope
+    | ValString s -> ValString s, scope
+    | ValBool b -> ValBool b, scope
+    | _ ->
+         raise (BuiltinException "clone: type error - unsupported type")
+
+let rec bsublist args scope =
+    let rec skipn n l =
+        match l, n with
+        | _, 0 -> l
+        | [], _ -> raise (BuiltinException "sublist: index out of bounds")
+        | _ :: xs, _ -> skipn (n - 1) xs
+    match args with
+    | [x; y] ->
+        match x with
+        | ValListReference ref ->
+            let len, newScope = blen [ValListReference ref] scope
+            bsublist [x; y; len] newScope
+        | _ -> raise (BuiltinException "sublist: type error")
+    | [x; y; z] ->
+        match x, y, z with
+        | ValListReference ref, ValInt i, ValInt j ->
+            let xs = getListFromRef ref scope
+            if j < i then
+                raise (BuiltinException "sublist: index out of bounds")
+            elif j > xs.Length then
+                raise (BuiltinException "sublist: index out of bounds")
+            else
+                let ys = List.truncate (j - i) (skipn i xs)
+                makeNewList ys scope
+        | _ -> raise (BuiltinException "sublist: type error")
+    | _ -> raise (BuiltinException "sublist: incorrect number of arguments")
+
+let brand args =
+    match singlearg "rand" args with
+    | ValInt i ->
+        let rnd = System.Random()
+        ValInt (rnd.Next() % i)
+    | _ -> raise (BuiltinException "rand: type error - argument not an int")
+
+
 let rec beqop e1 e2 =
     let res =
         match e1, e2 with
@@ -240,5 +286,8 @@ let builtins : Map<string, Value> =
         ("concat", ValBuiltinFunc bconcat)
         ("len", ValBuiltinFunc blen)
         ("range", ValBuiltinFunc brange)
+        ("clone", ValBuiltinFunc bclone)
+        ("sublist", ValBuiltinFunc bsublist)
+        ("rand", ValBuiltinFunc (contextfree brand))
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

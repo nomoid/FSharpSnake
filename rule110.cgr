@@ -1,0 +1,69 @@
+main():
+    # Number of rows is configurable
+    let rows = 50
+    let cols = rows + 2
+    let msg = "Rule 110 elementary cellular automaton with "
+    msg = concat(msg, str(rows))
+    msg = concat(msg, " iterations:")
+    print(msg)
+    let initial = setup(cols)
+    run(initial, rows)
+    return 0
+
+#Run rule 110 with the "initial" as the initial value "iters" iterations 
+run(initial, iters):
+    let curr = initial
+    prettyprint(curr)
+    for i in range(iters):
+        curr = iterate(curr)
+        prettyprint(curr)
+    return curr
+
+#Set up a list of ("size"-1) false and 1 true
+setup(size):
+    let l = [true]
+    for i in range(size - 1):
+        pushf(l, false)
+    return l
+
+#Iterate rule 110 once, returning the newly created list
+iterate(oldList):
+    let newList = []
+    let first = oldList[0]
+    let left = oldList[len(oldList)-1]
+    let curr = popf(oldList)
+    let right = popf(oldList)
+    while len(oldList) > 0:
+        pushf(newList, rule110(left, curr, right))
+        left = curr
+        curr = right
+        right = popf(oldList)
+    pushf(newList, rule110(left, curr, right))
+    pushf(newList, rule110(curr, right, first))
+    return reverse(newList)
+
+#Rule 110
+rule110(a, b, c):
+    return ((!c) & b) | (c & (!(a & b)))
+
+#Helper functions
+
+#Print a list with "O" representing true and "." representing false
+prettyprint(l):
+    let copy = clone(l)
+    let s = ""
+    while len(copy) > 0:
+        let p = popf(copy)
+        if p:
+            s = concat(s, "O")
+        else:
+            s = concat(s, ".")
+    print(s)
+    return 0
+
+#Reverse a list
+reverse(l):
+    let newL = []
+    while len(l) > 0:
+        pushf(newL, popf(l))
+    return newL

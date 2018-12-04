@@ -71,16 +71,20 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Property function call  (e.g. player.turn())
     - Property assignment (e.g. player.name = "Markus")
     - Creating new instances (e.g. player())
+- I/O
+    - Printing to console (print)
 
 ## Upcoming Features
+- Input
 - Card game engine
 
 ## Potential features
-- Dictionaries
+- Higher order functions
+- Constructors
 - Escape characters in strings
-- String concatenation
+- Lambda expressions
+- Dictionaries
 - Multi-line statements/expressions
 - Floating point numbers
-- Lambda expressions
 - Multi-file support
 - External language support

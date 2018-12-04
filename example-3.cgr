@@ -1,0 +1,53 @@
+split(l):
+    let splitted = []
+    let c = len(l)
+    pushf(splitted, sublist(l, c/2))
+    pushf(splitted, sublist(l, 0, c/2))
+    return splitted
+
+merge(a, b):
+    if len(a) == 0:
+        return b
+    elif len(b) == 0:
+        return a
+    let av = popf(a)
+    let bv = popf(b)
+    if av <= bv:
+        pushf(b, bv)
+        let nl = merge(a, b)
+        pushf(nl, av)
+        return nl
+    else:
+        pushf(a, av)
+        let nl = merge(a, b)
+        pushf(nl, bv)
+        return nl    
+
+mergesort(l):
+    if len(l) <= 1:
+        return l
+    let splitted = split(l)
+    let left = mergesort(splitted[0])
+    let right = mergesort(splitted[1])
+    return merge(left, right)
+
+randlist(length, max):
+    let l = []
+    for i in range(length):
+        pushf(l, rand(max))
+    return l
+
+main():
+    print("Merge sorting a fixed list:")
+    let arr = [3,1,4,1,5,9,2,6]
+    print("Original:")
+    print(arr)
+    print("Sorted:")
+    print(mergesort(arr))
+    print("Merge sorting a random list:")
+    let arr2 = randlist(20, 1000)
+    print("Original:")
+    print(arr2)
+    print("Sorted:")
+    print(mergesort(arr2))
+    return 0
