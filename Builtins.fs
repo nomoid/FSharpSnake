@@ -31,6 +31,12 @@ let anonfuncargs i =
     |> List.map (sprintf "arg%i")
     |> String.concat ","
 
+let bint args =
+    match singlearg "int" args with
+    | ValInt i -> ValInt i
+    | ValString s -> ValInt (int s)
+    | _ -> ValNone
+
 let rec bstropt inner args scope =
     match singlearg "tostring" args with
     | ValInt i -> ValString (sprintf "%i" i), scope
@@ -79,21 +85,22 @@ let rec bstropt inner args scope =
 
 let bstr args scope =
     bstropt false args scope
-let bprintraw args scope =
+let bprintraw newline args scope =
     let v, newScope = bstr args scope
     match v with
-    | ValString s -> printf "%s" s; ValNone, newScope
+    | ValString s ->
+        let printfunc = if newline then printfn else printf
+        printfunc "%s" s; ValNone, newScope
     | _ -> raise (BuiltinException "Invalid return type for ToString")
 let bprint args scope =
-    let v, newScope = bprintraw args scope
-    printfn ""
+    let v, newScope = bprintraw true args scope
     v, newScope
 
 let binput args scope =
     match args with
     | [] -> ValString(Console.ReadLine()), scope
     | [v] ->
-        let _, newScope = bprintraw [v] scope
+        let _, newScope = bprintraw false [v] scope
         ValString(Console.ReadLine()), newScope
     | _ ->
         raise (BuiltinException "input: incorrect number of arguments")
@@ -205,6 +212,12 @@ let brand args =
         ValInt (rnd.Next() % i)
     | _ -> raise (BuiltinException "rand: type error - argument not an int")
 
+//let bmap args scope =
+//    match twoargs "map" args with
+//    | ValFunc f, ValListReference ref ->
+//        let xs = getListFromRef ref scope
+
+
 
 let rec beqop e1 e2 =
     let res =
@@ -292,9 +305,17 @@ let contextfree bfun =
 
 let builtins : Map<string, Value> =
     [
+        ("int", ValBuiltinFunc (contextfree bint))
+        //("reverse",)
+        //("map",)
+        //("fold",)
+        //("filter",)
+        //("compose",)
+        //("applyone",)
+        //("applyall",)
         ("str", ValBuiltinFunc bstr)
         ("print", ValBuiltinFunc bprint)
-        ("printraw", ValBuiltinFunc bprintraw)
+        ("printraw", ValBuiltinFunc (bprintraw false))
         ("input", ValBuiltinFunc binput)
         ("sqrt", ValBuiltinFunc (contextfree bsqrt))
         ("pushf", ValBuiltinFunc bpushf)
