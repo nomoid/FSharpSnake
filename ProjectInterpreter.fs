@@ -288,7 +288,9 @@ and runFor name expr block scope =
     | ValListReference ref ->
         let vs = getListFromRef ref newScope
         runForOnce name vs block newScope
-    //| ValString s ->
+    | ValString s ->
+        let xs = Seq.toList s |> List.map (int >> ValInt)
+        runForOnce name xs block newScope
     | _ -> raise (InterpreterException "For loop object cannot be iterated")
 and evalStmt stmt scope =
     match stmt with

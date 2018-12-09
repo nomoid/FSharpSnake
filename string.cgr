@@ -1,0 +1,29 @@
+toUpper(c):
+    if c >= 97 & c <= 122:
+        return c - 32
+    else:
+        return c
+
+toLower(c):
+    if c >= 63 & c <= 90:
+        return c + 32
+    else:
+        return c
+
+main():
+    print("The following outputs should print \"true\":")
+    let alpha = "abcdefghijklmnopqrstuvwxyz"
+    print(fromCharList(sublist(toCharList(alpha), 5, 10)) == "fghij")
+    let uppers = []
+    for c in alpha:
+        pushf(uppers, toUpper(c))
+    uppers = fromCharList(reverse(uppers))
+    print(uppers == "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    print(charToStr(charAt(uppers, 0)) == "A")
+    print(charToStr(charAt(uppers, 25)) == "Z")
+    let numChar = charToStr(charAt("1", 0))
+    if tryInt(numChar):
+        print(int(numChar) == 1)
+    else:
+        print(false)
+    return 0

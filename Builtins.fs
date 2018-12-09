@@ -31,10 +31,22 @@ let anonfuncargs i =
     |> List.map (sprintf "arg%i")
     |> String.concat ","
 
+let btryint args =
+    match singlearg "tryint" args with
+    | ValInt i -> ValBool true
+    | ValString s ->
+        match tryParseInt s with
+        | Some _ -> ValBool true
+        | None -> ValBool false
+    | _ -> ValBool false
+
 let bint args =
     match singlearg "int" args with
     | ValInt i -> ValInt i
-    | ValString s -> ValInt (int s)
+    | ValString s ->
+        match tryParseInt s with
+        | Some i -> ValInt i
+        | None -> ValNone
     | _ -> ValNone
 
 let rec bstropt inner args scope =
@@ -95,6 +107,44 @@ let bprintraw newline args scope =
 let bprint args scope =
     let v, newScope = bprintraw true args scope
     v, newScope
+
+let bToCharList args scope =
+    match singlearg "toCharList" args with
+    | ValString s ->
+        let vs = Seq.toList s |> List.map (int >> ValInt)
+        makeNewList vs scope
+    | _-> raise (BuiltinException "toCharList: invalid input type")
+
+let bFromCharList args scope =
+    match singlearg "fromCharList" args with
+    | ValListReference ref ->
+        let rec fromCharListInner vs =
+            match vs with
+            | [] -> []
+            | v :: remaining ->
+                match v with
+                | ValInt i ->
+                    char i :: fromCharListInner remaining
+                | _ ->
+                    raise (BuiltinException 
+                        "fromCharList: element not a number")
+        let vs = getListFromRef ref scope
+        ValString (new String(fromCharListInner vs |> Array.ofList)), scope
+    | _ -> raise (BuiltinException "fromCharList: invalid input type")
+
+let bCharToStr args =
+    match singlearg "charToStr" args with
+    | ValInt i ->
+        ValString (new String([|char i|]))
+    | _ -> raise (BuiltinException "charToStr: invalid input type")
+
+let bCharAt args =
+    match twoarg "charAt" args with
+    | ValString s, ValInt i ->
+        if i >= s.Length || i < 0 then
+            raise (BuiltinException "charAt: index out of bounds")
+        ValInt (int (Seq.toArray s).[i])
+    | _ -> raise (BuiltinException "charAt: invalid input type")
 
 let binput args scope =
     match args with
@@ -205,6 +255,15 @@ let rec bsublist args scope =
         | _ -> raise (BuiltinException "sublist: type error")
     | _ -> raise (BuiltinException "sublist: incorrect number of arguments")
 
+let breverse args scope =
+    match singlearg "reverse" args with
+    | ValListReference ref ->
+        let vs = getListFromRef ref scope
+        ValListReference ref, setListToRef ref (List.rev vs) scope
+    | ValString s ->
+        ValString (new String(Array.rev (s.ToCharArray()))), scope
+    | _ -> raise (BuiltinException "reverse: type error")
+
 let brand args =
     match singlearg "rand" args with
     | ValInt i ->
@@ -305,6 +364,11 @@ let contextfree bfun =
 
 let builtins : Map<string, Value> =
     [
+        ("toCharList", ValBuiltinFunc bToCharList)
+        ("fromCharList", ValBuiltinFunc bFromCharList)
+        ("charToStr", ValBuiltinFunc (contextfree bCharToStr))
+        ("charAt", ValBuiltinFunc (contextfree bCharAt))
+        ("tryInt", ValBuiltinFunc (contextfree btryint))
         ("int", ValBuiltinFunc (contextfree bint))
         //("reverse",)
         //("map",)
@@ -325,6 +389,7 @@ let builtins : Map<string, Value> =
         ("range", ValBuiltinFunc brange)
         ("clone", ValBuiltinFunc bclone)
         ("sublist", ValBuiltinFunc bsublist)
+        ("reverse", ValBuiltinFunc breverse)
         ("rand", ValBuiltinFunc (contextfree brand))
         ("hello", ValString "Hello, world!")
     ] |> Map.ofSeq

@@ -1,6 +1,6 @@
 main():
     # Number of rows is configurable
-    let rows = 50
+    let rows = 100
     let cols = rows + 2
     let msg = "Rule 110 elementary cellular automaton with "
     msg = concat(msg, str(rows))
@@ -60,10 +60,3 @@ prettyprint(l):
             s = concat(s, ".")
     print(s)
     return 0
-
-#Reverse a list
-reverse(l):
-    let newL = []
-    while len(l) > 0:
-        pushf(newL, popf(l))
-    return newL
