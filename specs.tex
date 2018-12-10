@@ -90,10 +90,14 @@ mutable, if, then, else, cloud, async, static, use, abstract, interface, inherit
 \usepackage[shortlabels]{enumitem}
 \usepackage{forest}
 \usepackage{tabularx}
+% Allow for newlines within tabularx cells
+\newcommand{\specialcell}[2][c]{%
+  \begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
+\usepackage{hyperref}
 
-\title{CS 334 F\#Snake Language Specs}
+\title{F\#Snake Language Specification}
 \author{Markus Feng}
-\date{Due 2018-11-29}
+\date{2018-12-09}
 
 \begin{document}
 
@@ -104,8 +108,10 @@ The goal of this language is to create a F\# implementation of a general purpose
 
 This problem needs its own programming language because it defines a specific set of restricted functionality. This means that it is easier to check the security and the correctness of the programs written in this language. The hope is that this language is a basic building block such that simple programs can be written in this language, and that features can be added to this language as needed to make it easier to write specific programs, while not losing its benefit of simplicity.
 
+A demo of the project can be found at:\\ \url{http://assisstion.github.io/projects/cardgamelang/}. 
+
 \section{Design Principles}
-The guiding design principle behind this design is powerful but simple and familiar. This would more likely ring true to programmers with previous experience in Python, who would find the syntax and semantics similar to that language.
+The guiding design principle behind this design is powerful but simple and familiar. This would more likely ring true to programmers with previous experience in Python, who would find the syntax and semantics similar to that language. This language is powerful enough to be Turing complete (assuming infinite time and memory), as demonstrated by the fact that it is possible to implement a Rule 110 elementary cellular automata in this language.
 
 \section{Examples}
 The following example (which can be run by \texttt{dotnet run example-1.cgr}) is an implementation of a program to print out prime numbers:
@@ -202,9 +208,10 @@ main():
     return 0
 \end{lstlisting}
 
+Other sample programs can be found in the \texttt{samples} subdirectory, and can be run by \texttt{dotnet run samples/<file>.cgr}. Most of these are programs to test that my language is working the way that it is intended.
 
 \section{Language Concepts}
-The user needs to understand basic imperative programming concepts to use this language. Because the structure of this language is similar to any other type of imperative language such as \texttt{python} or \texttt{java}, the language has variables and functions, control flow such as \texttt{if}/\texttt{else}/\texttt{for}/\texttt{while}, recursion, and types such as \texttt{int}, \texttt{boolean}, \texttt{string}, \texttt{array}. In this case, variables act as primitives, while methods, control flow, and complex objects act as combining forms. Note that like many other general purpose programming languages, there is usually multiple ways to solve a problem in this language, so not understanding some of the previous concepts does not prevent a user from being able to use this language.
+The user needs to understand basic imperative programming concepts to use this language. Because the structure of this language is similar to any other type of imperative language such as \texttt{python} or \texttt{java}, the language has variables and functions, control flow such as \texttt{if}/\texttt{else}/\texttt{for}/\texttt{while}, recursion, and types such as \texttt{int}, \texttt{boolean}, \texttt{string}, \texttt{list}. In this case, variables act as primitives, while methods, control flow, and complex objects act as combining forms. In addition, there is a concept of a \texttt{scope}, similar to that of a class. A \texttt{scope} contains a set of properties and functions, and can be initialized by calling a function of the scope name with no arguments. Note that like many other general purpose programming languages, there is usually multiple ways to solve a problem in this language, so not understanding some of the previous concepts does not prevent a user from being able to use this language.
 
 \section{Syntax}
 The goal is for the language to have a \texttt{python}-like whitespace based syntax. Therefore, indentation matters in such a language, so we use a \texttt{[<expr>+1]} to indicate that everything inside \texttt <expr> (other than newlines) is indented one additional time. In addition, any non-quoted "\#" character begins a comment, so that character and all successive characters of the same line are ignored. The BNF of the currently implemented grammar looks like the following:
@@ -218,8 +225,7 @@ The goal is for the language to have a \texttt{python}-like whitespace based syn
 
 <fun_def> ::= <fun_header> <stmt_block>
 <stmt_block> ::= : <newlines> [<expr_body>+1]
-<fun_header> ::= <fun_name_args>
-<fun_name_args> ::= <id> (<fun_args>)
+<fun_header> ::= <id> (<fun_args>)
 <fun_args> ::= <id> | <fun_args>, <id>
 <expr_body> ::= <stmt> <newlines> <stmt> | <stmt>
 
@@ -288,7 +294,7 @@ The goal is for the language to have a \texttt{python}-like whitespace based syn
 <num> ::= num in {0, 1, ..., 9}
 
 ;Operators
-<unary_expr> ::= <unary_op> <expr>
+<unary_expr> ::= <unary_op> <array_expr>
 <unary_op> ::= {-, +, !}
 <op> ::= {+, -, *, /, %, ==, !=, <=, >=, <, >, &, |}
 
@@ -305,7 +311,7 @@ The program is interpreted in order, line-by-line, with multi-line clusters form
 
 The interpreter will throw a syntax error if the result of the parsing is invalid, indicating the line number that the interpreter fails at. Currently, the interpreter does not support multi-line statements, so the same statement must be kept on a single line for parsing to succeed.
 
-Primitive Values
+\subsection{Primitive Values}
 \begin{center}
  \begin{tabularx}{\linewidth}{|c|c|c|X|} 
  \hline
@@ -317,10 +323,15 @@ Primitive Values
  \hline
  true/false & BoolLiteral of bool & ValBool & A primitive in the language that represents a boolean using the F\# bool type. \\
  \hline
+ id & Identifier of string & ValReference & A primitive in the language that represents an identifier that can be assigned to and accessed later. \\
+ \hline
+ this & ThisLiteral & ValReference & A primitive in the language that, when called in an instance function, gives a reference to that instance, and fails otherwise. \\
+ \hline
 \end{tabularx}
 \end{center}
 
-Control flow
+\clearpage
+\subsection{Control flow}
 \begin{center}
  \begin{tabularx}{\linewidth}{|X|X|X|} 
  \hline
@@ -332,10 +343,29 @@ Control flow
  \hline
  for $id$ in $list$ stmts & ForStmt of string * Expr * Stmt list & Evaluate the list expression, and execute the block once for each value in the list, setting a temporary variable $id$ to that value. \\
  \hline
+ $fun$($args$) & FuncCallStmt of string * Expr list & Evaluate the arguments form left to right order (where args is a comma separated list of expressions), then look for a function with the name $fun$ and execute the function with the specified arguments. An exception will be thrown if the number of provided arguments is incorrect. \\
+ \hline
 \end{tabularx}
 \end{center}
 
-Composite Values
+\clearpage
+\subsection{Accessors}
+(Note that the left hand side of accessors can be any expression that evaluates to the list or object)
+\begin{center}
+ \begin{tabularx}{\linewidth}{|X|X|X|} 
+ \hline
+ Syntax & Abstract Syntax & Meaning \\
+ \hline
+ $arr$[$index$] & ArrayAccessor of Expr * string & Access the a zero-indexed list at the specified index, failing if the index is out of bounds or the object is not a list, or assigns to the list at the index (index must be a valid index).\\ 
+ \hline
+ $obj$.$property$ & PropertyAccessor of Expr * string & Access a property of an object, failing if the property does not exist, or assigns a property of an object (property does not already need to exist). \\
+ \hline
+ $obj$.$fun$($args$) & PropertyFunctionCall of Expr * string * Expr list & Evaluate the arguments form left to right order (where args is a comma separated list of expressions), then look for a function with the name $fun$ of the specified object and execute the function with the specified arguments. An exception will be thrown if the number of provided arguments is incorrect. \\
+ \hline
+\end{tabularx}
+\end{center}
+
+\subsection{Composite Values}
 \begin{center}
  \begin{tabularx}{\linewidth}{|c|X|X|X|} 
  \hline
@@ -343,13 +373,117 @@ Composite Values
  \hline
  $[e_1, e_2, ..., e_n]$ & ListLiteral of Expr list & Value list & Represents a list of elements. Evaluating the list involves evaluating each individual expression in the list, and returning a lit containing the result of the evaluations. \\ 
  \hline
- $a op= b$ & AssignmentStmt of LValue * BinaryOp option * Expr & Stmt & Represents an assignment of a variable $a$ to a value $b$. If the optional $op$ is included, represents taking the value of $a$ and $b$ and applying $op$ to them, then storing the value to $a$. \\
+ $a\ \ [op]=\ b$ & AssignmentStmt of LValue * BinaryOp option * Expr & Stmt & Represents an assignment of a variable $a$ to a value $b$. If the optional $op$ is included, represents taking the value of $a$ and $b$ and applying $op$ to them, then storing the value to $a$. \\
  \hline
- expr & Expr & Expr & Represents an expression that can be evaluated to produce a value. \\
+ let $a=b$ & LetStmt of string * Expr & Stmt & Represents an assignment of a newly created local variable $a$ to a value $b$. This newly created local variable can shadow and existing variable of the same name in an outer scope. \\
  \hline
- stmt & Stmt & Stmt & Represents a statement that can be executed sequentially in program order. \\
+ $expr$ & Expr & Expr & Represents an expression that can be evaluated to produce a value. \\
  \hline
- fun(args): stmts & FunctionDefn of string * string list * Stmt list & ValFunc & Represents a function, defined by the function name (string), a list of arguments (string list), and a list of statements(Stmt) \\
+ $stmt$ & Stmt & Stmt & Represents a statement that can be executed sequentially in program order. \\
+ \hline
+ $defn$ & Defn & Defn & Represents an upper level definition. A complete program is made up of Defns. \\
+ \hline
+ ($expr$) & ParensExpr of Expr & Parenthases ensure that the expression inside is evaluated as a group. Use to override operator precedence. \\
+ \hline
+ $fun$($args$): $stmts$ & FunctionDefn of string * string list * Stmt list & ValFunc & Represents a function, defined by the function name (string), a list of arguments (string list), and a list of statements(Stmt) \\
+ \hline
+ $scopename$: $defns$ & ScopeDefn of string * Defn list & ValFunc & Represents a scope (the equivalent of a class). The scope is instantiated by calling a function $scopename()$, and each instance has unique properties. The created instance will have type ValReference. \\
+ \hline
+\end{tabularx}
+\end{center}
+
+\subsection{Operators}
+\begin{center}
+ \begin{tabularx}{\linewidth}{|c|c|c|X|} 
+ \hline
+ Syntax & Input Type & Resulting Type & Meaning \\
+ \hline
+ $a + b$ & ValInt * ValInt & ValInt & Returns the sum of the input values. Note: does not work for string concatenation; use the \texttt{concat} builtin function instead. \\ 
+ \hline
+ $a - b$ & ValInt * ValInt & ValInt & Returns the difference between the first and second values. \\ 
+ \hline
+ $a * b$ & ValInt * ValInt & ValInt & Returns the product of the input values. \\ 
+ \hline
+ $a / b$ & ValInt * ValInt & ValInt & Returns the quotient of the first and second values. \\
+ \hline
+ $a \% b$ & ValInt * ValInt & ValInt & Returns the modulo of the first and the second values; (the modulo is the remainder after division). \\ 
+ \hline
+ $a == b$ & Value * Value & ValBool & Returns true if the inputs are equal, false otherwise. Works for the following Value types (the two inputs must be the same type): ValBool, ValInt, ValString, ValFunc, ValList (reference not structural equality), ValReference. \\ 
+ \hline
+ $a != b$ & Value * Value & ValBool & Returns false if the inputs are equal, true otherwise. In other words, equivalent to $!(a == b)$. \\
+ \hline
+ $a <= b$ & ValInt * ValInt & ValBool & Returns true if the first value is less than or equal to the second value, false otherwise. \\
+ \hline
+ $a >= b$ & ValInt * ValInt & ValBool & Returns true if the first value is greater than or equal to the second value, false otherwise. \\
+ \hline
+ $a < b$ & ValInt * ValInt & ValBool & Returns true if the first value is less than the second value, false otherwise. \\
+ \hline
+ $a > b$ & ValInt * ValInt & ValBool & Returns true if the first value is greater than the second value, false otherwise. \\
+ \hline
+ $a \& b$ & ValBool * ValBool & ValBool & Returns true if all inputs are true, false otherwise. \\
+ \hline
+ $a | b$ & ValBool * ValBool & ValBool & Returns true if any input is true, false otherwise. \\
+ \hline
+ $!a$ & ValBool & ValBool & Returns true the input is false, false otherwise. \\
+ \hline
+ $-a$ & ValInt & ValInt & Returns the additive inverse of the input value. Equivalent to $a * -1$. \\
+ \hline
+ $+a$ & ValInt & ValInt & Returns the input value. \\
+ \hline
+\end{tabularx}
+\end{center}
+
+\clearpage
+\subsection{Builtin Functions}
+\begin{center}
+ \begin{tabularx}{\linewidth}{|c|c|c|X|} 
+ \hline
+ Syntax & Input Type & Resulting Type & Meaning \\
+ \hline
+ $str(v)$ & Value & ValString & Returns the string representation of the value. \\ 
+ \hline
+ $print(v)$ & Value & ValNone & Prints the string representation of the value to the console, with a trailing newline. \\ 
+ \hline
+ $printraw(v)$ & Value & ValNone & Prints the string representation of the value to the console, with no trailing newline. \\ 
+ \hline
+ $input([v])$ & Value option & ValString & Reads input from standard input into a string. If an argument is specified, uses the string representation of that argument as a prompt for the input. \\ 
+ \hline
+ $sqrt(i)$ & ValInt & ValInt & Returns the floor of the square root of the input, failing on a negative input. \\
+ \hline
+ $pushf(l, v)$ & ValList * Value & ValNone & Pushes a value $v$ to the beginning of a list $l$. \\
+ \hline
+ $popf(l)$ & ValList & Value & Pops a value from the beginning of a list and returns it. \\
+ \hline
+ $concat(v1, v2)$ & \specialcell{ValListOrString *\\ ValListOrString} & ValListOrString & Concatenates two lists or two strings together. If lists are concatenated, does not modify the reference to the original list. \\
+ \hline
+ $len(v)$ & ValListOrString & ValInt & Returns the length of the input list or string. \\
+ \hline
+ $range([a], b)$ & \specialcell{ValInt option *\\ ValInt} & ValList & If there are two arguments, return a list of ValInts from $a$ inclusive to $b$ exclusive (the list contains all values from $a$ to $b-1$). If only one argument is specified, the first argument is implied to be zero. \\
+ \hline
+ $clone(l)$ & ValList & ValList & Returns a new list that is a copy of the input list. \\
+ \hline
+ $sublist(l, a, [b])$ & \specialcell{ValList *\\ ValInt option *\\ ValInt} & ValNone & Returns a new list that contains the elements of an existing list from index of the first argument (inclusive) to the index of the second argument (exclusive), or the end of the list if the second argument is omitted. \\
+ \hline
+ $reverse(v)$ & ValListOrString & ValListOrString & Reverses a list or string (modifying the current list), and returns it. \\
+ \hline
+ $rand(i)$ & ValInt & ValInt & Returns a random integer from 0 to $i-1$, inclusive. \\
+ \hline
+ $int(str)$ & ValString & ValInt & Parses the input string to its the integer value, fails if it cannot occur. It is recommended to use $tryInt$ first to verify if the string can be parsed to an integer. \\
+ \hline
+ $tryInt(str)$ & ValString & ValBool & Returns true if the string can be parsed to an int, and false otherwise. \\
+ \hline
+\end{tabularx}
+\end{center}
+\begin{center}
+ \begin{tabularx}{\linewidth}{|c|c|c|X|} 
+ \hline
+ $toCharList(s)$ & ValString & ValList & Returns the list of characters of a string (characters are represented by ValInts with their ASCII/Unicode representation). \\
+ \hline
+ $fromCharList(l)$ & ValList & ValString & Returns a string formed by a specified list of characters (characters are represented by ValInts with their ASCII/Unicode representation). \\
+ \hline
+ $charToStr(i)$ & ValInt & ValString & Returns the string representation of a single character (characters are represented by ValInts with their ASCII/Unicode representation). \\
+ \hline
+ $charAt(s, i)$ & \specialcell{ValString *\\ ValInt} & ValString & Returns the character at a specified index of a string (characters are represented by ValInts with their ASCII/Unicode representation). \\
  \hline
 \end{tabularx}
 \end{center}
@@ -379,29 +513,24 @@ Function("playing_value", ["base", "card"],
 )
 \end{lstlisting}
 
+\clearpage
 This same code excerpt would be represented in the abstract syntax tree structure in the following form (ignoring indentation for now).
 
 \begin{forest}
     [fun\_def
         [fun\_header
-            [fun\_name\_args
+            [id
+                [\texttt{playing\_value}]
+            ]
+            [fun\_args
                 [id
-                    [\texttt{playing\_value}]
+                    [\texttt{base}]
                 ]
                 [fun\_args
                     [id
-                        [\texttt{base}]
-                    ]
-                    [fun\_args
-                        [id
-                            [\texttt{card}]
-                        ]
+                        [\texttt{card}]
                     ]
                 ]
-            ]
-            [\texttt{default}]
-            [const\_value
-                [\texttt{0}]
             ]
         ]
         [stmt\_block
@@ -415,7 +544,7 @@ This same code excerpt would be represented in the abstract syntax tree structur
                         [if\_part
                             [\texttt{if}]
                             [expr
-                                [eq\_expr
+                                [binary\_expr
                                     [prop\_acc
                                         [expr
                                             [id
@@ -427,7 +556,11 @@ This same code excerpt would be represented in the abstract syntax tree structur
                                             [\texttt{suit}]
                                         ]
                                     ]
-                                    [\texttt{==}]
+                                    [op
+                                        [Eq
+                                            [\texttt{==}]
+                                        ]
+                                    ]
                                     [prop\_acc
                                         [expr
                                             [id
@@ -475,12 +608,12 @@ This same code excerpt would be represented in the abstract syntax tree structur
     ]
 \end{forest}
 
-This language is currently planned to support lexical scoping and strong dynamic typing, due to it being an interpreted language. Any error that occurs during execution will cause the program to halt with an error message describing the problem. Upon being interpreted, will run the main function of the global scope, with an empty state.
+This language supports lexical scoping and strong dynamic typing. Any error that occurs during execution will cause the program to halt with an error message describing the problem. The interpreter will run the main function of the global scope as the entry point, with an empty state.
 
 \section{Remaining Work}
-Currently, my project already achieves the goal of a general purpose programming language with various features. In addition, I already have a web interface/playground to test my project on, with working "command line" output. For my project, a stretch goal would be to allow programs written in my language the ability to receive input. One of the challenges for this to work is to adapt such an input so that it works on the web client. From my knowledge, Javascript does not have the ability to perform blocking calls, so I may need to modify my program so that part of the program is executed prior to the blocking call, and that the program resumes execution from where it left off after the input.
+Currently, my project already achieves the goal of a general purpose programming language with various features. In addition, I already have a web interface/playground to test my project on, with working "command line" output.
 
-Additionally, as a stretch goal, I could try to implement more additional language features. Some of the potential features to include are the following:
+As a stretch goal, I could try to implement more additional language features. Some of the potential features to include are the following:
 \begin{itemize}
     \item Higher order functions
     \item Constructors
