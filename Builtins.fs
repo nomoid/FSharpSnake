@@ -332,12 +332,12 @@ let bunaryminus e =
 let bunaryplus e =
     match e with
     | ValInt v -> ValInt (v)
-    | _ -> raise (BuiltinException "-: type error on one or more arguments")
+    | _ -> raise (BuiltinException "+: type error on one or more arguments")
 
 let bunarynot e =
     match e with
     | ValBool v -> ValBool (not v)
-    | _ -> raise (BuiltinException "-: type error on one or more arguments")
+    | _ -> raise (BuiltinException "!: type error on one or more arguments")
 
 let opto op =
     match op with

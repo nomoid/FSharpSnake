@@ -1,0 +1,368 @@
+#Lambda Parse and Evaluator
+main():
+    let s = input("Expression to parse: ")
+    let out = parse(s)
+    if out.complete():
+        print(out.toString())
+        let expr = out.res
+        let anf = alphanorm(expr).expr
+        print(concat("Alpha normal form: ", anf.toString()))
+        let bnf = betanorm(anf)
+        print(concat("Beta normal form: ", bnf.toString()))
+    else:
+        print("Incomplete parse")
+    return 0
+
+parse(s):
+    if len(s) == 0:
+        return result().fail()
+    #Parse variable
+    if isLetter(charAt(s, 0)):
+        let var = variable().new(ss(s, 0, 1))
+        return result().succeed(var, sf(s, 1))
+    #Parse abstraction
+    if sw(s, "(L"):
+        #Min length
+        if len(s) < 6:
+            return result().fail()
+        if !isLetter(charAt(s, 2)):
+            return result().fail()
+        let var = ss(s, 2, 3)
+        let s2 = sf(s, 3)
+        if !sw(s2, "."):
+            return result().fail()
+        let rem = sf(s2, 1)
+        let tryParse = parse(rem)
+        if !(tryParse.successful):
+            return result().fail()
+        let rem2 = tryParse.remaining
+        if !sw(rem2, ")"):
+            return result().fail()
+        let abs = abstraction().new(var, tryParse.res)
+        return result().succeed(abs, sf(rem2, 1))
+    #Parse application
+    if sw(s, "("):
+        let rem = sf(s, 1)
+        let tryParse1 = parse(rem)
+        if !(tryParse1.successful):
+            return result().fail()
+        let rem2 = tryParse1.remaining
+        let tryParse2 = parse(rem2)
+        if !(tryParse2.successful):
+            return result().fail()
+        let rem3 = tryParse2.remaining
+        if !sw(rem3, ")"):
+            return result().fail()
+        let app = application().new(tryParse1.res, tryParse2.res)
+        return result().succeed(app, sf(rem3, 1))
+    return result().fail()
+
+#Alpha reduction
+
+fv(expr):
+    return fvb(expr, [])
+
+fvb(expr, bindings):
+    let t = expr.type
+    if t == "variable":
+        if contains(bindings, expr.var):
+            return []
+        else:
+            return [expr.var]
+    elif t == "abstraction":
+        let b = clone(bindings)
+        pushf(b, expr.var)
+        return fvb(expr.expr, b)
+    elif t == "application":
+        let part1 = fvb(expr.expr1, bindings)
+        let part2 = fvb(expr.expr2, bindings)
+        return concat(part1, part2)
+
+alphabet = "abcdefghijklmnopqrstuvwxyz"
+
+freshvar(bindings):
+    for i in toCharList(alphabet):
+        let s = charToStr(i)
+        if !contains(bindings, s):
+            return s
+    print("No fresh variables remaining")
+
+alphanorm(expr):
+    return alphanormb(expr, fv(expr), map())
+
+alphanormb(expr, bindings, renamings):
+    let t = expr.type
+    if t == "variable":
+        let v = expr.var
+        if renamings.containsKey(v):
+            let newV = variable().new(renamings.get(v))
+            return anr().new(newV, bindings)
+        else:
+            return anr().new(expr, bindings)
+    elif t == "abstraction":
+        let v = expr.var
+        let e = expr.expr
+        if contains(bindings, v):
+            let newV = freshvar(bindings)
+            let b = clone(bindings)
+            pushf(b, newV)
+            let m = map().copyOf(renamings)
+            m.put(v, newV)
+            let res = alphanormb(e, b, m)
+            let newA = abstraction().new(newV, res.expr)
+            return anr().new(newA, res.bindings)
+        else:
+            let b = clone(bindings)
+            pushf(b, v)
+            let res = alphanormb(e, b, renamings)
+            let newA = abstraction().new(v, res.expr)
+            return anr().new(newA, res.bindings)
+    elif t == "application":
+        let e1 = expr.expr1
+        let e2 = expr.expr2
+        let res1 = alphanormb(e1, bindings, renamings)
+        let res2 = alphanormb(e2, res1.bindings, renamings)
+        let newA = application().new(res1.expr, res2.expr)
+        return anr().new(newA, res2.bindings)
+
+anr:
+    expr = ""
+    bindings = ""
+
+    new(e, b):
+        expr = e
+        bindings = b
+        return this
+
+#Beta reduction
+
+betasub(subVar, subWith, expr):
+    let t = expr.type
+    if t == "variable":
+        let v = expr.var
+        if v == subVar:
+            return subWith
+        else:
+            return expr
+    elif t == "application":
+        let e1 = expr.expr1
+        let e2 = expr.expr2
+        let res1 = betasub(subVar, subWith, e1)
+        let res2 = betasub(subVar, subWith, e2)
+        return application().new(res1, res2)
+    elif t == "abstraction":
+        let e = expr.expr
+        let v = expr.var
+        let res = betasub(subVar, subWith, e)
+        return abstraction().new(v, res)
+
+betastep(expr):
+    let t = expr.type
+    if t == "variable":
+        return expr
+    elif t == "abstraction":
+        let e = expr.expr
+        let v = expr.var
+        return abstraction().new(v, betastep(e))
+    elif t == "application":
+        let e1 = expr.expr1
+        let e2 = expr.expr2
+        let t1 = e1.type
+        if t1 == "variable":
+            return application().new(e1, betastep(e2))
+        elif t1 == "abstraction":
+            let ei = e1.expr
+            let vi = e1.var
+            return betasub(vi, e2, ei)
+        elif t1 == "application":
+            let res1 = betastep(e1)
+            if !expreq(e1, res1):
+                return application().new(res1, e2)
+            else:
+                let res2 = betastep(e2)
+                if !expreq(e2, res2):
+                    return application().new(e1, res2)
+                else:
+                    return expr
+
+betanorm(expr):
+    let alphaE = alphanorm(expr).expr
+    let betaE = betastep(alphaE)
+    if expreq(alphaE, betaE):
+        return betaE
+    else:
+        return betanorm(betaE)
+
+expreq(expr1, expr2):
+    let t = expr1.type
+    if t != expr2.type:
+        return false
+    if t == "variable":
+        let v1 = expr1.var
+        let v2 = expr2.var
+        return v1 == v2
+    elif t == "abstraction":
+        let e1 = expr1.expr
+        let v1 = expr1.var
+        let e2 = expr2.expr
+        let v2 = expr2.var
+        return v1 == v2 & expreq(e1, e2)
+    elif t == "application":
+        let e11 = expr1.expr1
+        let e12 = expr1.expr2
+        let e21 = expr2.expr1
+        let e22 = expr2.expr2
+        return expreq(e11, e21) & expreq(e12, e22)
+
+#Helper methods
+
+#Is lowercase ascii
+isLetter(c):
+    if c >= 97 & c <= 122:
+        return true
+    else:
+        return false
+
+#Substring from index i to end
+sf(s, i):
+    return fromCharList(sublist(toCharList(s), i))
+
+#Substring from index i to index j
+ss(s, i, j):
+    return fromCharList(sublist(toCharList(s), i, j))
+
+#Starts with string
+sw(s, sub):
+    if len(s) < len(sub):
+        return false
+    return ss(s, 0, len(sub)) == sub
+
+#List containment
+contains(l, s):
+    for v in l:
+        if v == s:
+            return true
+    return false
+
+#Remove an index of a list
+removeAt(l, i):
+    if i == len(l) - 1:
+        return sublist(l, 0, i)
+    else:
+        return concat(sublist(l, 0, i), sublist(l, i + 1))
+
+#Type definitions
+
+abstraction:
+    type = "abstraction"
+    var = ""
+    expr = ""
+
+    new(v, e):
+        var = v
+        expr = e
+        return this
+    
+    toString():
+        let a = concat("(L", var)
+        let b = concat(a, ".")
+        let c = concat(b, expr.toString())
+        return concat(c, ")")
+
+application:
+    type = "application"
+    expr1 = ""
+    expr2 = ""
+
+    new(e1, e2):
+        expr1 = e1
+        expr2 = e2
+        return this
+    
+    toString():
+        let a = concat("(", expr1.toString())
+        let b = concat(a, expr2.toString())
+        return concat(b, ")")
+
+variable:
+    type = "variable"
+    var = ""
+    
+    new(v):
+        var = v
+        return this
+    
+    toString():
+        return var
+
+result:
+    type = "result"
+    successful = false
+    res = ""
+    remaining = ""
+
+    new(s, resx, rem):
+        successful = s
+        res = resx
+        remaining = rem
+        return this
+    
+    succeed(resx, rem):
+        successful = true
+        res = resx
+        remaining = rem
+        return this
+    
+    fail():
+        successful = false
+        return this
+    
+    complete():
+        if successful & remaining == "":
+            return true
+        else:
+            return false
+
+    toString():
+        if successful:
+            return concat("Success with ", res.toString())
+        else:
+            let msg = "Failure"
+            return msg
+
+#Naive dictionary implementation
+map:
+    keys = []
+    values = []
+
+    containsKey(key):
+        return contains(keys, key)
+
+    put(key, value):
+        if containsKey(key):
+            remove(key)
+        pushf(keys, key)
+        pushf(values, value)
+        return true
+    
+    remove(key):
+        for i in size():
+            if keys[i] == key:
+                keys = removeAt(keys, i)
+                values = removeAt(values, i)
+                return true
+        return false
+    
+    get(key):
+        for i in range(size()):
+            if keys[i] == key:
+                return values[i]
+        return false
+    
+    size():
+        return len(keys)
+    
+    copyOf(m):
+        keys = clone(m.keys)
+        values = clone(m.values)
+        return this
