@@ -73,9 +73,9 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
     - Creating new instances (e.g. player())
 - I/O
     - Printing to console (print)
+    - Input (input)
 
 ## Upcoming Features
-- Input
 - Card game engine
 
 ## Potential features
