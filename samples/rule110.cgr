@@ -1,6 +1,6 @@
 main():
     # Number of rows is configurable
-    let rows = 100
+    let rows = int(input("Enter the number of rows: "))
     let cols = rows + 2
     let msg = "Rule 110 elementary cellular automaton with "
     msg = concat(msg, str(rows))
