@@ -1,7 +1,9 @@
-# Card Game Snake
-Programming language for creating turn-based card games.
+# F#Snake
+Turing-Complete Programming language written in F# with syntax inspired from Python.
 
-Test out my project at [this link](http://assisstion.github.io/projects/cardgamelang/).
+Test out my project at [this link](http://markusfeng.com/projects/fsharpsnake/).
+
+For sample programs written in F#Snake, check out the [samples](samples) directory.
 
 ## Prerequisites
 - [.NET Core](https://www.microsoft.com/net/download)
@@ -74,9 +76,6 @@ Test out my project at [this link](http://assisstion.github.io/projects/cardgame
 - I/O
     - Printing to console (print)
     - Input (input)
-
-## Upcoming Features
-- Card game engine
 
 ## Potential features
 - Higher order functions
