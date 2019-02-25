@@ -581,7 +581,7 @@ let cleanLower input =
     let clean1 = Regex.Replace(clean0, @"[\s]{2,}", " ")
     let rec cleanLowerInner input =
         let cleanInner =
-            Regex.Replace(input, @"([A-Za-z0-9_]) ([A-Za-z0-9_])", "$1?$2")
+            Regex.Replace(input, @"([A-Za-z0-9_$]) ([A-Za-z0-9_$])", "$1?$2")
         if cleanInner = input then
             cleanInner
         else
